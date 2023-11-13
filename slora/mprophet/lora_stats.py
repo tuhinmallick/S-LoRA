@@ -21,8 +21,7 @@ class LoRAProphet:
     def get_layer_size(self, dtype="fp16"):
         dbytes = get_num_bytes(dtype)
         m = self.base_config
-        size = dbytes * (m.hidden_size * self.lora_config.rank * 2 * 4)
-        return size
+        return dbytes * (m.hidden_size * self.lora_config.rank * 2 * 4)
 
 
     def get_adapter_size(self, dtype="fp16"):

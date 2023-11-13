@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=str, required=True)
     args = parser.parse_args()
- 
+
     # for setting in ["S1", "S2", "S3", "S4"]:
     for setting in ["S2"]:
         # for option in ["", "--no-mem-pool"]:
@@ -76,10 +76,7 @@ if __name__ == "__main__":
             # time.sleep(30)
 
             filename = f"ablation_mem_{args.device}_{setting}"
-            if option == "--no-mem-pool":
-                filename += f"_no_mem.jsonl"
-            else:
-                filename += f".jsonl"
+            filename += "_no_mem.jsonl" if option == "--no-mem-pool" else ".jsonl"
             # run_cmd = f"python ../run_exp.py " \
             #           f" --backend slora " \
             #           f" --suite ablation-no-mem " \

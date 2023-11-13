@@ -31,7 +31,7 @@ class LlamaTransformerLayerWeight(TransformerLayerWeight):
                    self.down_proj
                    ]
         for i in range(len(weights)):
-            assert weights[i] is not None, "index:" + str(i) + " " + errors
+            assert weights[i] is not None, f"index:{str(i)} {errors}"
 
 
     def _load_qkvo_dummy_weights(self):

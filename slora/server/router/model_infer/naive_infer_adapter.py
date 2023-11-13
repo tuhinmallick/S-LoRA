@@ -78,7 +78,7 @@ class NaiveInferAdapter:
                 rank_sum += adapter.r * 4
         print(f"load {len(new_adapters)} adapters, {len(self.adapter_dirs) + len(new_adapters)} in total")
 
-        if len(new_adapters) == 0:
+        if not new_adapters:
             print(f"load 0 adapters, {len(self.adapter_dirs)} in total")
             return
 

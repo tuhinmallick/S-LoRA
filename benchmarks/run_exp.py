@@ -30,7 +30,7 @@ REQUEST_LATENCY: List[Tuple[int, int, float]] = []
 vllm_packed_adapter_dir_to_url_map = {}
 
 def get_peak_mem(server):
-    url = server + "/get_peak_mem"
+    url = f"{server}/get_peak_mem"
     response = requests.post(url)
     return response.json()["peak_mem"]
 
@@ -50,13 +50,13 @@ async def send_request(
     headers = {'Content-Type': 'application/json'}
     headers = {"User-Agent": "Benchmark Client"}
     if backend == "vllm":
-        url = server + "/generate"
+        url = f"{server}/generate"
     elif backend == "vllm-packed":
-        url = vllm_packed_adapter_dir_to_url_map[adapter_dir] + "/generate"
+        url = f"{vllm_packed_adapter_dir_to_url_map[adapter_dir]}/generate"
     else:
-        url = server + "/generate_stream"
-    
-    if backend in ["slora"]:
+        url = f"{server}/generate_stream"
+
+    if backend in {"slora"}:
         data = {
             'model_dir': model_dir,
             'lora_dir': adapter_dir,
@@ -68,7 +68,7 @@ async def send_request(
                  # 'temperature': 0.1,
             }
         }
-    elif backend in ["lightllm"]:
+    elif backend in {"lightllm"}:
         data = {
             'inputs': prompt,
             'parameters': {
@@ -78,7 +78,7 @@ async def send_request(
                  # 'temperature': 0.1,
             },
         }
-    elif backend in ["vllm", "vllm-packed"]:
+    elif backend in {"vllm", "vllm-packed"}:
         data = {
             'prompt': prompt,
             'max_tokens': output_len,
@@ -98,15 +98,13 @@ async def send_request(
             output = b"".join(chunks).decode("utf-8")
             # output = json.loads(output)
             # print(output)
-            
-            if '\"finished\": -1' not in output:
-                break
-            else:
+
+            if '\"finished\": -1' in output:
                 first_token_latency = None
-                break
-            # #     print(output)
-            # #     print(json.loads(output))
-            # break
+            break
+                    # #     print(output)
+                    # #     print(json.loads(output))
+                    # break
 
     request_end_time = time.time()
     request_latency = request_end_time - request_start_time
@@ -133,8 +131,7 @@ async def benchmark(
                                                 req.req_id, req.model_dir, req.adapter_dir, req.prompt,
                                                 req.prompt_len, req.output_len, debug))
         tasks.append(task)
-    latency = await asyncio.gather(*tasks)
-    return latency
+    return await asyncio.gather(*tasks)
 
 
 def get_adapter_dirs(num_adapters, adapter_dirs, backend=None):
@@ -145,8 +142,7 @@ def get_adapter_dirs(num_adapters, adapter_dirs, backend=None):
         num_iter = num_adapters // len(adapter_dirs)
 
     for i in range(num_iter):
-        for adapter_dir in adapter_dirs:
-            ret.append(adapter_dir + f"-{i}")
+        ret.extend(f"{adapter_dir}-{i}" for adapter_dir in adapter_dirs)
     return ret
 
 def get_res_stats(per_req_latency, benchmark_time, backend, warmup_time=0, warmup_num=0):
@@ -197,14 +193,9 @@ def get_res_stats(per_req_latency, benchmark_time, backend, warmup_time=0, warmu
     avg_attainment = np.mean(attainment)
     print(f"Average attainment: {avg_attainment:.2f}")
 
-    # dump results
-    if backend == "slora":
-        # TODO
-        # single_gpu_peak_mem = peak_mem
-        single_gpu_peak_mem = 0
-    else:
-        single_gpu_peak_mem = 0
-
+    # TODO
+    # single_gpu_peak_mem = peak_mem
+    single_gpu_peak_mem = 0
     result = {"total_time": benchmark_time, "gpu_peak_mem": single_gpu_peak_mem, "num_abort": num_abort,
               "throughput": throughput, "strip_throughput": strip_throughput,
               "avg_latency": avg_latency, "avg_per_token_latency": avg_per_token_latency,
@@ -212,21 +203,19 @@ def get_res_stats(per_req_latency, benchmark_time, backend, warmup_time=0, warmu
               "avg_first_token_latency": avg_first_token_latency,
               "avg_satisfaction": avg_satisfaction,
               "avg_attainment": avg_attainment}
-    res = {"config": to_dict(config), "result": result}
-    
-    return res
+    return {"config": to_dict(config), "result": result}
 
 
 def run_exp(model_setting, backend, server, config, output, mode, seed=42, debug=False):
     if mode == "real":
         print("*** num_adapters, cv and alpha are not used in real mode ***")
-    print([(k, v) for k, v in zip(BenchmarkConfig._fields, config)])
+    print(list(zip(BenchmarkConfig._fields, config)))
 
     num_adapters, alpha, req_rate, cv, duration, input_range, output_range = config
+    base_model = BASE_MODEL[model_setting]
+    adapter_dirs = LORA_DIR[model_setting]
     # assert duration >= 30
     if mode == "synthetic":
-        base_model = BASE_MODEL[model_setting]
-        adapter_dirs = LORA_DIR[model_setting]
         adapter_dirs = get_adapter_dirs(num_adapters, adapter_dirs)
         adapter_dirs = [(base_model, adapter_dirs[i]) for i in range(num_adapters)]
         if num_adapters == 0:
@@ -240,9 +229,6 @@ def run_exp(model_setting, backend, server, config, output, mode, seed=42, debug
         avg_len = np.mean([req.prompt_len + req.output_len for req in requests])
         print("avg_len:", avg_len, "avg_prompt_len:", avg_prompt_len, "avg_output_len:", avg_output_len)
     else:
-        # first generate your data using real_trace/clean_chat_data.py
-        base_model = BASE_MODEL[model_setting]
-        adapter_dirs = LORA_DIR[model_setting]
         adapter_dirs, requests = get_real_requests(trace_file="../../../real_trace/clean_chat_conv_20231019.json",
                                                    req_rate=req_rate, duration=duration,
                                                    base_model=base_model, adapter_dirs=adapter_dirs,
@@ -253,7 +239,7 @@ def run_exp(model_setting, backend, server, config, output, mode, seed=42, debug
         avg_output_len = np.mean([req.output_len for req in requests])
         avg_len = np.mean([req.prompt_len + req.output_len for req in requests])
         print("num_adapters", len(adapter_dirs), "num_requests", len(requests), "avg_len:", avg_len, "avg_prompt_len:", avg_prompt_len, "avg_output_len:", avg_output_len)
-        
+
     if debug:
         print("num requests:", len(requests))
         for req in requests[:4]:
@@ -305,7 +291,7 @@ if __name__ == "__main__":
 
     # set output file name
     if args.output is None:
-        args.output = f"all_results_{args.mode}_" + args.backend + ".jsonl"
+        args.output = f"all_results_{args.mode}_{args.backend}.jsonl"
     if args.no_lora_swap and args.no_lora_compute and args.no_lora_copy:
         args.output = "no_lora_compute_swap_copy_results.jsonl"
     elif args.no_lora_swap and args.no_lora_compute:
@@ -315,7 +301,7 @@ if __name__ == "__main__":
     elif args.no_lora_compute:
         args.output = "no_lora_compute_results.jsonl"
     if args.debug or args.breakdown:
-        args.output = "debug_" + args.output
+        args.output = f"debug_{args.output}"
 
     suites = get_all_suites(mode=args.mode, debug=args.debug, suite=args.suite, breakdown=args.breakdown)
 

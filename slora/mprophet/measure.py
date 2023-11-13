@@ -17,25 +17,31 @@ class ModelProphet:
     def get_layer_size(self, dtype="fp16"):
         dbytes = get_num_bytes(dtype)
         m = self.model_config
- 
+
         if "opt" in self.name.lower():
-            size = dbytes * (
-                    # self-attention:
-                    m.hidden_size ** 2 * 3 + m.hidden_size ** 2 +
-                    # mlp
-                    m.hidden_size * m.ffn_embed_dim * 2 +
-                    # layer norm
-                    m.hidden_size * 4)
-            return size
+            return dbytes * (
+                # self-attention:
+                m.hidden_size**2 * 3
+                + m.hidden_size**2
+                +
+                # mlp
+                m.hidden_size * m.ffn_embed_dim * 2
+                +
+                # layer norm
+                m.hidden_size * 4
+            )
         elif "llama" in self.name.lower():
-            size = dbytes * (
-                    # self-attention:
-                    m.hidden_size ** 2 * 3 + m.hidden_size ** 2 +
-                    # mlp
-                    m.hidden_size * m.ffn_embed_dim * 3 +
-                    # layer norm
-                    m.hidden_size * 4)
-            return size
+            return dbytes * (
+                # self-attention:
+                m.hidden_size**2 * 3
+                + m.hidden_size**2
+                +
+                # mlp
+                m.hidden_size * m.ffn_embed_dim * 3
+                +
+                # layer norm
+                m.hidden_size * 4
+            )
         else:
             raise NotImplementedError
 
@@ -73,22 +79,21 @@ class ModelProphet:
     # memory
     def get_peak_working_memory(self, bs, context_len, dtype="fp16", tiling_dim = None):
         # if using tiling for attention
-        if tiling_dim is not None:
-            attn_block_dim = tiling_dim
-        else:
-            attn_block_dim = context_len
-
+        attn_block_dim = tiling_dim if tiling_dim is not None else context_len
         dbytes = get_num_bytes(dtype)
         m = self.model_config
-        mem = dbytes * bs * max(# attention
-                                3 * context_len * m.hidden_size +
-                                m.n_head * attn_block_dim ** 2 +
-                                context_len * m.hidden_size +
-                                context_len * m.hidden_size,
-                                # mlp
-                                context_len * m.hidden_size * 4
-                               )
-        return mem
+        return (
+            dbytes
+            * bs
+            * max(  # attention
+                3 * context_len * m.hidden_size
+                + m.n_head * attn_block_dim**2
+                + context_len * m.hidden_size
+                + context_len * m.hidden_size,
+                # mlp
+                context_len * m.hidden_size * 4,
+            )
+        )
 
 
     def get_kv_cache_size(self, bs, context_len, dtype="fp16"):
@@ -119,7 +124,7 @@ class ModelProphet:
 
 
     def get_layer_inference_time(self, token_id, bs, context_len, tflops=None, gpu=None, dtype="fp16"):
-        assert not (tflops is None and gpu is None)
+        assert tflops is not None or gpu is not None
         if tflops is None:
             tflops = TFLOPS[gpu]
         flops = self.get_layer_flops(token_id, bs, context_len)

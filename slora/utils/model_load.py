@@ -7,8 +7,7 @@ from huggingface_hub import snapshot_download
 def get_lock(model_name_or_path: str, cache_dir: str = None):
     lock_dir = cache_dir if cache_dir is not None else "/tmp"
     lock_file_name = model_name_or_path.replace("/", "-") + ".lock"
-    lock = filelock.FileLock(os.path.join(lock_dir, lock_file_name))
-    return lock
+    return filelock.FileLock(os.path.join(lock_dir, lock_file_name))
 
 def hf_load_config(weights_dir, mode="adapter"):
     is_local = os.path.isdir(weights_dir)

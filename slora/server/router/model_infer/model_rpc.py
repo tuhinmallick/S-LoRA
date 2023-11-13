@@ -109,10 +109,11 @@ class ModelRpcServer(rpyc.Service):
     @torch.no_grad()
     def exposed_load_adapters(self, adapter_dirs, prefetch=False):
         if not self.input_params.bmm:
-            adapters = []
-            for adapter_dir in adapter_dirs:
-                if adapter_dir is not None:
-                    adapters.append(self.adapters[self.adapter_id[adapter_dir]])
+            adapters = [
+                self.adapters[self.adapter_id[adapter_dir]]
+                for adapter_dir in adapter_dirs
+                if adapter_dir is not None
+            ]
             self.infer_adapter.load_adapters(adapters, prefetch=prefetch)
         else:
             for adapter_dir in adapter_dirs:
@@ -347,16 +348,15 @@ class ModelRpcServer(rpyc.Service):
                 continue
             if adapter.r in self.adapter_prefill:
                 continue
-            else:
-                self.adapter_prefill[adapter.r] = defaultdict(dict)
-                self.infer_adapter.load_adapters([adapter], prefetch=False)
-                torch.cuda.synchronize()
-                for bs in range(2, max_bs+1, 2):
-                    for input_len in tqdm(range(32, max_input_len+1, 32), desc=f"profile prefill bs={bs}, adapter={adapter.r}"):
-                        if bs not in self.base_prefill or input_len not in self.base_prefill[bs]:
-                            self._profile_prefill(bs, input_len)
-                        self._profile_adapter_prefill(adapter, bs, input_len)
-                self.infer_adapter.offload_adapters([])
+            self.adapter_prefill[adapter.r] = defaultdict(dict)
+            self.infer_adapter.load_adapters([adapter], prefetch=False)
+            torch.cuda.synchronize()
+            for bs in range(2, max_bs+1, 2):
+                for input_len in tqdm(range(32, max_input_len+1, 32), desc=f"profile prefill bs={bs}, adapter={adapter.r}"):
+                    if bs not in self.base_prefill or input_len not in self.base_prefill[bs]:
+                        self._profile_prefill(bs, input_len)
+                    self._profile_adapter_prefill(adapter, bs, input_len)
+            self.infer_adapter.offload_adapters([])
         return self.base_prefill, self.adapter_prefill
 
     def exposed_unmerge_adapter(self):
@@ -418,15 +418,13 @@ class ModelRpcClient:
 
     async def init_model(self, rank_id, world_size, weight_dir, adapter_dirs,
                          max_total_token_num, load_way, mode, input_params,
-			 prefetch_stream):
+    			 prefetch_stream):
         ans : rpyc.AsyncResult = self._init_model(rank_id, world_size, weight_dir, adapter_dirs,
-                                                  max_total_token_num, load_way, mode, input_params,
-						  prefetch_stream)
+        max_total_token_num, load_way, mode, input_params,
+        prefetch_stream)
         if self.use_rpc:
             await ans
-            return
-        else:
-            return
+        return
 
 
     async def load_adapters(self, reqs, prefetch=False):
@@ -447,54 +445,37 @@ class ModelRpcClient:
         ans = self._add_batch(batch_id, reqs, "fp16")
         if self.use_rpc:
             await ans
-            return
-        else:
-            return
+        return
 
     async def prefill_batch(self, batch_id):
         ans = self._prefill_batch(batch_id)
-        if self.use_rpc:
-            return await ans
-        else:
-            return ans
+        return await ans if self.use_rpc else ans
 
     async def decode_batch(self, batch_id):
         ans = self._decode_batch(batch_id)
-        if self.use_rpc:
-            return await ans
-        else:
-            return ans
+        return await ans if self.use_rpc else ans
 
     async def filter_batch(self, batch_id, req_id_list):
         ans = self._filter_batch(batch_id, req_id_list)
         if self.use_rpc:
             await ans
-            return
-        else:
-            return 
+        return 
 
     async def merge_batch(self, batch_id1, batch_id2):
         ans = self._merge_batch(batch_id1, batch_id2)
         if self.use_rpc:
             await ans
-            return
-        else:
-            return
+        return
 
     async def remove_batch(self, batch_id):
         ans = self._remove_batch(batch_id)
         if self.use_rpc:
             await ans
-            return
-        else:
-            return
+        return
     
     async def profile_prefill(self):
         ans = self._profile_prefill()
-        if self.use_rpc:
-            return await ans
-        else:
-            return ans
+        return await ans if self.use_rpc else ans
 
 
 def _init_env(port):

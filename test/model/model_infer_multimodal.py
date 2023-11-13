@@ -26,7 +26,7 @@ def gen_repad_embeds(batch_size, model, input_len, repad_embeds_args):
     all_repad_embeds = []
     pad_len, pad_dim_size, offset = repad_embeds_args
 
-    for i in range(batch_size):
+    for _ in range(batch_size):
         # shape = [input_len]
         input_ids = torch.from_numpy(np.arange(5, input_len + 5).reshape(-1)).cuda()
         # shape = [pad_len, pad_dim_size]

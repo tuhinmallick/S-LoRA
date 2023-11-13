@@ -200,7 +200,7 @@ def matmul_int8(a, a_scale, b, b_scale, out=None):
     M, K = a.shape
     K, N = b.shape
     # Allocates output.
-    if out == None:
+    if out is None:
         c = torch.zeros((M, N), device=a.device, dtype=torch.float16)
     else:
         c = out.fill_(0.)
@@ -250,7 +250,7 @@ def test_correct_int8(M=32, N=4096, K=4096):
 def test_int8(M, K, N):
     import time
 
-    print("M: {} K: {} N: {}".format(M, K, N))
+    print(f"M: {M} K: {K} N: {N}")
     torch.manual_seed(0)
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16).contiguous()
@@ -275,8 +275,9 @@ def test_int8(M, K, N):
     triton_time = t2 - qt2
     triton_tflops = 2 * M * N * K * 1e-12 / (triton_time / iters)
     quant_bandwith = 2 * M * K * 1e-9 / (quant_time / iters)
-    print("Triton time cost: {} (tflops {}) + quant: {} (bandwidth {})".format(
-        triton_time, triton_tflops, quant_time, quant_bandwith))
+    print(
+        f"Triton time cost: {triton_time} (tflops {triton_tflops}) + quant: {quant_time} (bandwidth {quant_bandwith})"
+    )
     for _ in range(10):
         torch_output = torch.matmul(a, b)
     torch.cuda.synchronize()
@@ -288,7 +289,7 @@ def test_int8(M, K, N):
     t2 = time.time()
     torch_time = t2 - t1
     torch_tflops = 2 * M * N * K * 1e-12 / (torch_time / iters)
-    print("Torch time cost: {} (tflops {})".format(t2 - t1, torch_tflops))
+    print(f"Torch time cost: {t2 - t1} (tflops {torch_tflops})")
     return triton_time, torch_time, quant_time
 
 
@@ -359,7 +360,7 @@ def test_model_layer(bs, sqe_len, hidden, inter, tp):
     st1 += t1
     st2 += t2
     st3 += t3
-    print("Triton time {} Torch time {} Quant time {}".format(st1, st2, st3))
+    print(f"Triton time {st1} Torch time {st2} Quant time {st3}")
 
 
 if __name__ == "__main__":

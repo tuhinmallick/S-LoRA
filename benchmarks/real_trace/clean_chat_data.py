@@ -33,9 +33,7 @@ def get_log_files(max_num_files=None):
     dates = []
     # Change the range to include only last two months
     for month in range(8, 12):
-        for day in range(1, 33):
-            dates.append(f"2023-{month:02d}-{day:02d}")
-
+        dates.extend(f"2023-{month:02d}-{day:02d}" for day in range(1, 33))
     filenames = []
     for d in dates:
         for i in range(NUM_SERVERS):
@@ -43,14 +41,12 @@ def get_log_files(max_num_files=None):
             if os.path.exists(name):
                 filenames.append(name)
     max_num_files = max_num_files or len(filenames)
-    # filenames = list(reversed(filenames))
-    filenames = filenames[-max_num_files:]
-    return filenames
+    return filenames[-max_num_files:]
 
 def clean_chat_data(log_files, action_type):
     raw_data = []
     for filename in tqdm(log_files, desc="read files"):
-        for retry in range(5):
+        for _ in range(5):
             try:
                 lines = open(filename).readlines()
                 break
@@ -84,7 +80,7 @@ def clean_chat_data(log_files, action_type):
         except KeyError:
             ct_invalid_conv_id += 1
             continue
-        
+
         if conversation_id is None:
             ct_invalid_conv_id += 1
             continue
@@ -96,13 +92,13 @@ def clean_chat_data(log_files, action_type):
         model = replace_model_name(model)
 
         turn = len(conversation) // 2
-        
+
         # skip non single turn data
 
         if turn != 1:
             ct_multi_turn += 1
             continue
-        
+
         try:
             # lang_code = detect_language(state["messages"][state["offset"]][1])
             lang_code = "any"
@@ -123,7 +119,7 @@ def clean_chat_data(log_files, action_type):
         if ip not in all_ips:
             all_ips[ip] = len(all_ips)
         user_id = all_ips[ip]
-        
+
         chats.append(
             dict(
                 conversation_id=conversation_id,

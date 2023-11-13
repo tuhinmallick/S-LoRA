@@ -32,20 +32,20 @@ if __name__ == "__main__":
     if args.device == "a10g":
         if args.num_adapter is None: args.num_adapter = 200
         if args.num_token is None: args.num_token = 14000
-    elif args.device == "h100":
-        if args.num_adapter is None: args.num_adapter = 1000
-        if args.num_token is None: args.num_token = 120000
     elif args.device == "debug":
         if args.num_adapter is None: args.num_adapter = 30
         if args.num_token is None: args.num_token = 14000
         if args.no_mem_pool:
             args.num_token -= 64 * 4 * 18
-    
 
+
+    elif args.device == "h100":
+        if args.num_adapter is None: args.num_adapter = 1000
+        if args.num_token is None: args.num_token = 120000
     if args.backend == "slora":
         cmd = f"python -m slora.server.api_server --max_total_token_num {args.num_token}"
         cmd += f" --model {base_model}"
-        cmd += f" --tokenizer_mode auto"
+        cmd += " --tokenizer_mode auto"
 
         num_iter = args.num_adapter // len(adapter_dirs) + 1
         for i in range(num_iter):

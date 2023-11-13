@@ -65,10 +65,10 @@ class InferBatch:
         input_lengths = []
         all_input_ids = []
         requests_idx_mapping = {}
-        
+
         out_token_id_counts = []
         sampling_param_list = []
-        
+
         nopad_total_token_num = 0
         nopad_max_len_in_batch = 0
         nopad_b_loc = torch.empty((len(requests), setting['max_req_total_len'] + 12), dtype=torch.long, device='cuda')
@@ -94,14 +94,16 @@ class InferBatch:
             sampling_param = r["sampling_param"]
             sampling_param["vocab_size"] = vocab_size
             sampling_param_list.append(InferSamplingParams(**sampling_param))
-            
+
             nopad_total_token_num += input_length
             nopad_max_len_in_batch = max(nopad_max_len_in_batch, input_length)
 
             adapter_dirs.append(r["adapter_dir"])
-            
+
         nopad_b_seq_len = torch.tensor(input_lengths, dtype=torch.int32, device="cuda")
-        nopad_b_start_loc[1:] = torch.cumsum(nopad_b_seq_len, dim=0, dtype=torch.int32)[0:-1]
+        nopad_b_start_loc[1:] = torch.cumsum(
+            nopad_b_seq_len, dim=0, dtype=torch.int32
+        )[:-1]
         if len(requests) > 1:
             input_ids = np.concatenate(all_input_ids, dtype=np.int64)
         else:
@@ -130,9 +132,16 @@ class InferBatch:
     
     @torch.no_grad()
     def free_self(self):
-        remove_index = []
-        for idx in range(len(self)):
-            remove_index.append(self.nopad_b_loc[idx, (self.nopad_max_len_in_batch - 1) - (self.nopad_b_seq_len[idx] - 1): (self.nopad_max_len_in_batch - 1)])
+        remove_index = [
+            self.nopad_b_loc[
+                idx,
+                (self.nopad_max_len_in_batch - 1)
+                - (self.nopad_b_seq_len[idx] - 1) : (
+                    self.nopad_max_len_in_batch - 1
+                ),
+            ]
+            for idx in range(len(self))
+        ]
         remove_index = torch.cat(remove_index, dim=-1)
         self.mem_manager.free(remove_index)
         return
@@ -140,7 +149,7 @@ class InferBatch:
     # @calculate_time(show=True, min_cost_ms=0)
     @torch.no_grad()
     def filter(self, request_ids: List[int]):
-        if len(request_ids) == 0:
+        if not request_ids:
             raise ValueError("Batch must have at least one request")
         if len(request_ids) == len(self):
             return self
@@ -158,17 +167,24 @@ class InferBatch:
         nopad_b_seq_len = torch.zeros(len(request_ids), dtype=torch.int32, device='cuda')
 
         left_idx = []
-        for i, request_id in enumerate(request_ids):
+        for request_id in request_ids:
             idx = self.requests_idx_mapping[request_id]
             left_idx.append(idx)
-        
+
         left_idx_set = set(left_idx)
-        remove_index = []
-        for idx in range(len(self)):
-            if idx not in left_idx_set:
-                remove_index.append(self.nopad_b_loc[idx, (self.nopad_max_len_in_batch - 1) - (self.nopad_b_seq_len[idx] - 1): (self.nopad_max_len_in_batch - 1)])
+        remove_index = [
+            self.nopad_b_loc[
+                idx,
+                (self.nopad_max_len_in_batch - 1)
+                - (self.nopad_b_seq_len[idx] - 1) : (
+                    self.nopad_max_len_in_batch - 1
+                ),
+            ]
+            for idx in range(len(self))
+            if idx not in left_idx_set
+        ]
         remove_index = torch.cat(remove_index, dim=-1)
-   
+
         # mark_start("filter free mem manager")
         self.mem_manager.free(remove_index)
         # mark_end("filter free mem manager")
@@ -185,15 +201,17 @@ class InferBatch:
         # ''' end '''
 
         nopad_max_len_in_batch = 0
-        for i, request_id in enumerate(request_ids):
+        for request_id in request_ids:
             idx = self.requests_idx_mapping[request_id]
             indices.append(idx)
-        
+
         nopad_b_seq_len[:] = self.nopad_b_seq_len[indices]
         nopad_max_len_in_batch = torch.max(nopad_b_seq_len).item()
-        nopad_b_start_loc[1:] = torch.cumsum(nopad_b_seq_len, dim=0, dtype=torch.int32)[0:-1]
+        nopad_b_start_loc[1:] = torch.cumsum(
+            nopad_b_seq_len, dim=0, dtype=torch.int32
+        )[:-1]
         nopad_total_token_num = torch.sum(nopad_b_seq_len).item()
-        
+
         nopad_b_loc[:, 0 : (nopad_max_len_in_batch - 1)] = self.nopad_b_loc[indices, (self.nopad_max_len_in_batch - 1) - (nopad_max_len_in_batch - 1): (self.nopad_max_len_in_batch - 1)]
         adapter_dirs = []
         for i, request_id in enumerate(request_ids):
@@ -203,7 +221,7 @@ class InferBatch:
             all_input_ids.append(self.all_input_ids[idx])
             input_lengths.append(self.input_lengths[idx])
             adapter_dirs.append(self.requests[idx]["adapter_dir"])
-        
+
         input_ids = self.input_ids[indices]
 
         return InferBatch(

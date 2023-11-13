@@ -27,7 +27,7 @@ class SamplingParams:
         self.ignore_eos = ignore_eos
         self.max_new_tokens = max_new_tokens
         self.stop_sequences = stop_sequences
-        if self.do_sample == False:
+        if not self.do_sample:
             self.temperature = 1.0
             self.top_p = 1.0
             self.top_k = 1
@@ -68,15 +68,11 @@ class SamplingParams:
         return
     
     def to_dict(self):
-        ret = {}
-        ret["do_sample"] = self.do_sample
-        ret["presence_penalty"] = self.presence_penalty
-        ret["frequency_penalty"] = self.frequency_penalty
-        ret["temperature"] = self.temperature
-        ret["top_p"] = self.top_p
-        ret["top_k"] = self.top_k
-        # if self.ignore_eos is not None:
-        #     ret["ignore_eos"] = self.ignore_eos
-        # if self.max_tokens is not None:
-        #     ret["max_tokens"] = self.max_tokens
-        return ret
+        return {
+            "do_sample": self.do_sample,
+            "presence_penalty": self.presence_penalty,
+            "frequency_penalty": self.frequency_penalty,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "top_k": self.top_k,
+        }

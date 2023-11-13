@@ -21,7 +21,7 @@ class LlamaPreLayerInfer(PreLayerInferTpl):
     @mark_cost_time("pre context forward")
     def context_forward(self, input_ids, infer_state: LlamaInferStateInfo, layer_weight: LlamaPreAndPostLayerWeight):
         total_token_num = infer_state.total_token_num
-        input_ids = input_ids[0:total_token_num]
+        input_ids = input_ids[:total_token_num]
 
         input_mask = torch.logical_or(self.vob_start_id_ > input_ids, input_ids >= self.vob_end_id_)
         tmp_input_ids = (input_ids - self.vob_start_id_)

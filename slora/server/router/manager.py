@@ -90,30 +90,28 @@ class RouterManager:
             rpc_model = await start_model_process(port=self.model_rpc_ports[rank_id], world_size=self.world_size)
             self.model_rpcs.append(rpc_model)
 
-        init_model_ret = []
-        for rank_id in range(self.world_size):  # async init model process
-            init_model_ret.append(
-                self.model_rpcs[rank_id].init_model(
-                    rank_id,
-                    self.world_size,
-                    self.model_weightdir,
-                    self.adapter_dirs,
-                    self.input_params.max_total_token_num,
-                    self.load_way,
-                    self.mode,
-                    input_params=self.input_params,
-                    prefetch_stream=self.prefetch_stream,
-                ))
-
+        init_model_ret = [
+            self.model_rpcs[rank_id].init_model(
+                rank_id,
+                self.world_size,
+                self.model_weightdir,
+                self.adapter_dirs,
+                self.input_params.max_total_token_num,
+                self.load_way,
+                self.mode,
+                input_params=self.input_params,
+                prefetch_stream=self.prefetch_stream,
+            )
+            for rank_id in range(self.world_size)
+        ]
         await asyncio.gather(*init_model_ret)
         return
     
     async def profile_prefill(self):
-        res = []
-        for rank_id in range(self.world_size):  # async init model process
-            res.append(
-                self.model_rpcs[rank_id].profile_prefill())
-
+        res = [
+            self.model_rpcs[rank_id].profile_prefill()
+            for rank_id in range(self.world_size)
+        ]
         results = await asyncio.gather(*res)
         self.alpha_model = AlphaModel(results[0])
         self.beta_model = BetaModel(results[0])
@@ -121,7 +119,7 @@ class RouterManager:
         cache_dir = os.path.expanduser("~/.cache/slora")
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir)
-        with open(cache_dir+"/profile_results.pkl", "wb") as f:
+        with open(f"{cache_dir}/profile_results.pkl", "wb") as f:
             pickle.dump(results[0], f)
         return
 
@@ -158,9 +156,8 @@ class RouterManager:
             if self.running_batch is not None:
                 if counter_count % 50 == 0:
                     print("current batch size:", len(self.running_batch.reqs), "token used ratio:", self.running_batch.calcu_used_tokens() / self.input_params.max_total_token_num)
-                    pass
                 self.stats_tool.print_stats()
-                
+
             if self.running_batch is None:
                 await asyncio.sleep(0.01)  # 10ms
 
@@ -178,21 +175,22 @@ class RouterManager:
                 self.stats_tool.count_prompt_tokens(new_batch)
                 self.running_batch = new_batch
 
-                # load adapters
-                ret = []
-                for tp_rank in range(self.world_size):
-                    ret.append(self.model_rpcs[tp_rank].load_adapters(new_batch.adapter_dirs))
+                ret = [
+                    self.model_rpcs[tp_rank].load_adapters(new_batch.adapter_dirs)
+                    for tp_rank in range(self.world_size)
+                ]
                 await asyncio.gather(*ret)
 
-                
+
                 # merge adapter to base model
                 if self.input_params.scheduler == "peft":
                     torch.cuda.synchronize()
-                    ret = []
-                    for tp_rank in range(self.world_size):
-                        ret.append(self.model_rpcs[tp_rank].merge_adapter())
+                    ret = [
+                        self.model_rpcs[tp_rank].merge_adapter()
+                        for tp_rank in range(self.world_size)
+                    ]
                     await asyncio.gather(*ret)
-            
+
                 torch.cuda.synchronize()
                 await self._prefill_batch(self.running_batch)
                 await self._filter_runing_batch()
@@ -202,14 +200,20 @@ class RouterManager:
         if self.has_wait_tokens < self.max_wait_tokens:
             self.stats_tool.count_output_tokens(self.running_batch)
             # prefetch
-            if (self.input_params.prefetch and (self.has_wait_tokens == self.max_wait_tokens // 2 or
-                self.has_wait_tokens == self.max_wait_tokens - 3) and self.input_params.scheduler != "peft"):
+            if (
+                self.input_params.prefetch
+                and self.has_wait_tokens
+                in [self.max_wait_tokens // 2, self.max_wait_tokens - 3]
+                and self.input_params.scheduler != "peft"
+            ):
                 next_batch = self.req_queue.next_batch()
                 if next_batch is not None:
-                    ret = []
-                    for tp_rank in range(self.world_size):
-                        ret.append(self.model_rpcs[tp_rank].load_adapters(
-                            next_batch.adapter_dirs, prefetch=True))
+                    ret = [
+                        self.model_rpcs[tp_rank].load_adapters(
+                            next_batch.adapter_dirs, prefetch=True
+                        )
+                        for tp_rank in range(self.world_size)
+                    ]
                     await asyncio.gather(*ret)
             await self._decode_batch(self.running_batch)
             await self._filter_runing_batch()
@@ -224,9 +228,12 @@ class RouterManager:
             if new_mini_batch is not None:
                 self.stats_tool.count_prompt_tokens(new_mini_batch)
 
-                ret = []
-                for tp_rank in range(self.world_size):
-                    ret.append(self.model_rpcs[tp_rank].load_adapters(new_mini_batch.adapter_dirs))
+                ret = [
+                    self.model_rpcs[tp_rank].load_adapters(
+                        new_mini_batch.adapter_dirs
+                    )
+                    for tp_rank in range(self.world_size)
+                ]
                 await asyncio.gather(*ret)
 
                 await self._prefill_batch(new_mini_batch, minibatch=True)
@@ -250,10 +257,7 @@ class RouterManager:
         await self._init_batch(batch)
         rets = [self.model_rpcs[tp_rank].prefill_batch(batch.batch_id) for tp_rank in range(self.world_size)]
         ans = await asyncio.gather(*rets)
-        if self.world_size != 1:
-            req_to_out_token_id = obtain(ans[0])
-        else:
-            req_to_out_token_id = ans[0]
+        req_to_out_token_id = obtain(ans[0]) if self.world_size != 1 else ans[0]
         self._add_token_id_to_req(batch, req_to_out_token_id)
         has_new_finished_req = batch.mark_finished_req(self.eos_id)
         self._send_to_detokenization_proc(batch, req_to_out_token_id)
@@ -263,10 +267,7 @@ class RouterManager:
     async def _decode_batch(self, batch:Batch):
         rets = [self.model_rpcs[tp_rank].decode_batch(batch.batch_id) for tp_rank in range(self.world_size)]
         ans = await asyncio.gather(*rets)
-        if self.world_size != 1:
-            req_to_out_token_id = obtain(ans[0])
-        else:
-            req_to_out_token_id = ans[0]
+        req_to_out_token_id = obtain(ans[0]) if self.world_size != 1 else ans[0]
         self._add_token_id_to_req(batch, req_to_out_token_id)
         has_new_finished_req = batch.mark_finished_req(self.eos_id)
         self._send_to_detokenization_proc(batch, req_to_out_token_id)
@@ -295,15 +296,17 @@ class RouterManager:
 
             # unmerge adapter from base model
             if self.input_params.scheduler == "peft" and batch.is_clear():
-                ret = []
-                for tp_rank in range(self.world_size):
-                    ret.append(self.model_rpcs[tp_rank].unmerge_adapter())
+                ret = [
+                    self.model_rpcs[tp_rank].unmerge_adapter()
+                    for tp_rank in range(self.world_size)
+                ]
                 await asyncio.gather(*ret)
 
             if not minibatch:
-                ret = []
-                for tp_rank in range(self.world_size):
-                    ret.append(self.model_rpcs[tp_rank].offload_adapters(batch.adapter_dirs))
+                ret = [
+                    self.model_rpcs[tp_rank].offload_adapters(batch.adapter_dirs)
+                    for tp_rank in range(self.world_size)
+                ]
                 await asyncio.gather(*ret)
 
             if batch.is_clear():
@@ -314,10 +317,10 @@ class RouterManager:
 
     async def _filter_runing_batch(self):
         if self.running_batch is not None and self.running_batch.is_clear():
-            # offload model and adapters
-            ret = []
-            for tp_rank in range(self.world_size):
-                ret.append(self.model_rpcs[tp_rank].offload_adapters())
+            ret = [
+                self.model_rpcs[tp_rank].offload_adapters()
+                for tp_rank in range(self.world_size)
+            ]
             await asyncio.gather(*ret)
 
             self.running_batch = None
@@ -400,7 +403,7 @@ def start_router_process(args, router_port, detokenization_port, model_rpc_ports
             log_stats = not args.disable_log_stats,
             log_stats_interval = args.log_stats_interval,
         )
-    
+
         asyncio.run(router.wait_to_model_ready())
         if input_params.profile:
             asyncio.run(router.profile_prefill())
@@ -410,9 +413,11 @@ def start_router_process(args, router_port, detokenization_port, model_rpc_ports
         elif input_params.scheduler == "pets":
             # loading from file
             cache_dir = os.path.expanduser("~/.cache/slora")
-            router.req_queue.alpha = AlphaModel.from_file(cache_dir+"/profile_results.pkl")
-            router.req_queue.beta = BetaModel.from_file(cache_dir+"/profile_results.pkl")
-    
+            router.req_queue.alpha = AlphaModel.from_file(
+                f"{cache_dir}/profile_results.pkl"
+            )
+            router.req_queue.beta = BetaModel.from_file(f"{cache_dir}/profile_results.pkl")
+
     except Exception as e:
         import traceback
         err_str = '\n'.join(traceback.format_exception(e))
@@ -421,7 +426,7 @@ def start_router_process(args, router_port, detokenization_port, model_rpc_ports
         raise
 
     pipe_writer.send('init ok')
-    
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.create_task(router.loop_for_fwd())

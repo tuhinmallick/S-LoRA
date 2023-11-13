@@ -37,18 +37,18 @@ class DeTokenizationManager:
                 assert isinstance(recv_obj, (BatchTokenIdOut, ReqDetokenizationState, AbortReq, BatchAbortReq)), f"type is not right {type(recv_obj)}"
                 if isinstance(recv_obj, ReqDetokenizationState):
                     self.req_id_to_out[recv_obj.request_id] = recv_obj
-                
+
                 if isinstance(recv_obj, AbortReq):
                     delete_req_id = recv_obj.req_id
                     if delete_req_id in self.req_id_to_out:
                         del self.req_id_to_out[delete_req_id]
-                
+
                 if isinstance(recv_obj, BatchAbortReq):
                     for delete_req_id in recv_obj.reqs:
                         if delete_req_id in self.req_id_to_out:
                             del self.req_id_to_out[delete_req_id]
                     self.send_to_httpserver.send_pyobj(recv_obj)
-                        
+
                 if isinstance(recv_obj, BatchTokenIdOut):
                     new_batch_str_out = BatchStrOut()
                     for req_id, new_token_id, new_gen_metadata, finished, abort in recv_obj.reqs_infs:
@@ -73,7 +73,6 @@ class DeTokenizationManager:
             except Exception as e:
                 print(f"detoken process has exception {str(e)}")
                 traceback.print_exc()
-                pass
 
 
 def start_detokenization_process(args, detokenization_port, httpserver_port, pipe_writer, trust_remote_code):

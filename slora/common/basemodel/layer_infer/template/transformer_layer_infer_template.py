@@ -28,22 +28,18 @@ class TransformerLayerInferTpl(TransformerLayerInfer):
     def _ffn_norm(self, input, infer_state:InferStateInfo, layer_weight)->torch.Tensor:
         raise Exception("need to impl")
     
-    def _pre_cache_kv(self, infer_state:InferStateInfo, layer_weight)->Tuple[torch.Tensor, torch.Tensor]:
+    def _pre_cache_kv(self, infer_state:InferStateInfo, layer_weight) -> Tuple[torch.Tensor, torch.Tensor]:
         # prefill cache_k cache_v
         if infer_state.is_prefill:
             cache_k = infer_state.prefill_key_buffer
             cache_v = infer_state.prefill_value_buffer
-            return cache_k, cache_v
-        # decode cache_k cache_v
+        elif infer_state.decode_is_contiguous:
+            cache_k = infer_state.mem_manager.key_buffer[self.layer_num_][infer_state.decode_mem_start:infer_state.decode_mem_end, :, :]
+            cache_v = infer_state.mem_manager.value_buffer[self.layer_num_][infer_state.decode_mem_start:infer_state.decode_mem_end, :, :]
         else:
-            if infer_state.decode_is_contiguous:
-                cache_k = infer_state.mem_manager.key_buffer[self.layer_num_][infer_state.decode_mem_start:infer_state.decode_mem_end, :, :]
-                cache_v = infer_state.mem_manager.value_buffer[self.layer_num_][infer_state.decode_mem_start:infer_state.decode_mem_end, :, :]
-            else:
-                cache_k = infer_state.decode_key_buffer
-                cache_v = infer_state.decode_value_buffer
-            return cache_k, cache_v
-        return
+            cache_k = infer_state.decode_key_buffer
+            cache_v = infer_state.decode_value_buffer
+        return cache_k, cache_v
 
     def _get_qkv(self, input, cache_k, cache_v, infer_state:InferStateInfo, layer_weight)->torch.Tensor:
         raise Exception("need to impl")

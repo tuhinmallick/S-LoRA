@@ -342,7 +342,7 @@ debug_suite = {
 
 
 def get_all_suites(mode, debug=False, suite=None, breakdown=False):
-    assert not (debug and breakdown)
+    assert not debug or not breakdown
     assert suite is not None
     if debug:
         exps = [{suite: debug_suite[suite]}]
@@ -360,18 +360,24 @@ def get_all_suites(mode, debug=False, suite=None, breakdown=False):
                 # These arguments are not used in real trace
                 num_adapters = alpha = cv = [None]
 
-            for combination in itertools.product(
-                                   num_adapters, alpha, req_rate, cv, duration,
-                                   input_range, output_range):
-                suites.append(combination)
+            suites.extend(
+                iter(
+                    itertools.product(
+                        num_adapters,
+                        alpha,
+                        req_rate,
+                        cv,
+                        duration,
+                        input_range,
+                        output_range,
+                    )
+                )
+            )
     return suites
 
 
 def to_dict(config):
-    ret = {}
-    for i, key in enumerate(BenchmarkConfig._fields):
-        ret[key] = config[i]
-    return ret
+    return {key: config[i] for i, key in enumerate(BenchmarkConfig._fields)}
 
 
 def to_tuple(config):

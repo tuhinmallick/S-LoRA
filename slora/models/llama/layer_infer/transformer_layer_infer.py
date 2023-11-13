@@ -74,9 +74,11 @@ class LlamaTransformerLayerInfer(TransformerLayerInferTpl):
     def _token_attention_kernel(self, q, infer_state:LlamaInferStateInfo, layer_weight)->torch.Tensor:
         return self._token_decode_attention_mode(q, infer_state)
 
-    def _get_o(self, input, infer_state:LlamaInferStateInfo, layer_weight:LlamaTransformerLayerWeight)->torch.Tensor:
-        o_tensor = torch.mm(input.view(-1, self.tp_o_head_num_ * self.head_dim_), layer_weight.o_weight_)
-        return o_tensor
+    def _get_o(self, input, infer_state:LlamaInferStateInfo, layer_weight:LlamaTransformerLayerWeight) -> torch.Tensor:
+        return torch.mm(
+            input.view(-1, self.tp_o_head_num_ * self.head_dim_),
+            layer_weight.o_weight_,
+        )
 
     def _ffn(self, input, infer_state:LlamaInferStateInfo, layer_weight:LlamaTransformerLayerWeight)->torch.Tensor:
         gate_out = torch.mm(input.view(-1, self.embed_dim_), layer_weight.gate_proj)

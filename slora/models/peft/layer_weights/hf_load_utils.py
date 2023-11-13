@@ -19,10 +19,12 @@ def load_hf_weights(data_type, weight_dir, transformer_layer_list=None,
     use_safetensors = True
     files = os.listdir(weight_dir)
     candidate_files = list(filter(lambda x : x.endswith('.safetensors'), files))
-    if len(candidate_files) == 0:
+    if not candidate_files:
         use_safetensors = False
         candidate_files = list(filter(lambda x : x.endswith('.bin'), files))
-    assert len(candidate_files) != 0, "can only support pytorch tensor and safetensors format for weights."
+    assert (
+        candidate_files
+    ), "can only support pytorch tensor and safetensors format for weights."
 
     model_name = weight_dir.rstrip("/").split("/")[-1]
     # for file_ in tqdm(candidate_files, desc=f"load {model_name}"):

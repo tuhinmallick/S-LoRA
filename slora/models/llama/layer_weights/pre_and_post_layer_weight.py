@@ -48,5 +48,5 @@ class LlamaPreAndPostLayerWeight(PreAndPostLayerWeight):
                    self.lm_head_weight_, 
                    self.final_norm_weight_]
         for i in range(len(weights)):
-            assert weights[i] is not None, "index:" + str(i) + " " + errors
+            assert weights[i] is not None, f"index:{str(i)} {errors}"
         return 

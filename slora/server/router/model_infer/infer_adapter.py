@@ -96,11 +96,11 @@ class InferAdapter:
             print(f"load 0 adapters, {len(self.adapter_dirs)} in total")
             return
 
+        new_adapters = []
+        tot_size = 0
         if prefetch:
             self.cur_tag ^= 1
             capacity = self.mem_manager.can_use_mem_size
-            new_adapters = []
-            tot_size = 0
             # mark_start("load scan")
             for adapter in adapters:
                 self.prefetch_tag[adapter.lora_dir] = self.cur_tag
@@ -113,8 +113,6 @@ class InferAdapter:
             print(f"prefetch {len(new_adapters)} adapters, "
                   f"{len(self.adapter_dirs) + len(new_adapters)} in total")
         else:
-            new_adapters = []
-            tot_size = 0
             # mark_start("load scan")
             for adapter in adapters:
                 if adapter is not None and adapter.lora_dir not in self.idx_map:
@@ -212,7 +210,7 @@ class InferAdapter:
                 left_ind.append(i)
                 self.idx_map[adapter_dir] = len(new_adapter_dirs)
                 new_adapter_dirs.append(adapter_dir)
-        if len(remove_ind) == 0:
+        if not remove_ind:
             return
         # mark_end("offload scan")
         self.adapter_dirs = new_adapter_dirs
@@ -226,7 +224,7 @@ class InferAdapter:
         # mark_start("offload free mem manager")
         self.mem_manager.free(remove_ind)
         # mark_end("offload free mem manager")
-        
+
         # reset indexing
         # mark_start("offload torch.empty")
         new_a_len = torch.empty(len(left_ind), dtype=torch.long, device="cuda")

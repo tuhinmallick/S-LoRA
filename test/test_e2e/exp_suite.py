@@ -46,18 +46,24 @@ def get_all_suites(suite="test"):
         for workload in exp:
             (num_adapters, alpha, req_rate, cv, duration, input_range, output_range) = exp[workload]
 
-            for combination in itertools.product(
-                                   num_adapters, alpha, req_rate, cv, duration,
-                                   input_range, output_range):
-                suites.append(combination)
+            suites.extend(
+                iter(
+                    itertools.product(
+                        num_adapters,
+                        alpha,
+                        req_rate,
+                        cv,
+                        duration,
+                        input_range,
+                        output_range,
+                    )
+                )
+            )
     return suites
 
 
 def to_dict(config):
-    ret = {}
-    for i, key in enumerate(BenchmarkConfig._fields):
-        ret[key] = config[i]
-    return ret
+    return {key: config[i] for i, key in enumerate(BenchmarkConfig._fields)}
 
 
 def to_tuple(config):

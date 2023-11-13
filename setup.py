@@ -24,15 +24,13 @@ def remove_unwanted_pytorch_nvcc_flags():
 
 
 remove_unwanted_pytorch_nvcc_flags()
-ext_modules = []
-ext_modules.append(
+ext_modules = [
     torch_cpp_ext.CUDAExtension(
         "slora._kernels",
-        ["slora/csrc/lora_ops.cc"] +
-        glob("slora/csrc/bgmv/*.cu"),
+        ["slora/csrc/lora_ops.cc"] + glob("slora/csrc/bgmv/*.cu"),
         extra_compile_args=['-std=c++17'],
-    ))
-
+    )
+]
 setup(
     name="slora",
     version="1.0.0",
