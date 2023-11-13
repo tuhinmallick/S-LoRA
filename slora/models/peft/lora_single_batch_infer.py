@@ -14,15 +14,15 @@ class LoraPEFTBatchInfer:
 
     def __init__(self, base_model, infer_adapter=None):
         self.base_model = base_model
-        
-        self.max_lora_dim = a_len = int(infer_adapter.a_len[0]) // 4
-        emb_dim = self.base_model.layers_infer[0].embed_dim_ 
 
+        self.max_lora_dim = a_len = int(infer_adapter.a_len[0]) // 4
         if infer_adapter is not None:
             self.infer_adapter = infer_adapter
             self.key_buffer = infer_adapter.mem_manager.key_buffer
             self.value_buffer = infer_adapter.mem_manager.value_buffer
             self.adapter_idx = 0
+
+            emb_dim = self.base_model.layers_infer[0].embed_dim_ 
 
             self.batch_lora_A = [torch.zeros((4, emb_dim, self.max_lora_dim), dtype=torch.float16, device="cuda") for _ in range(self.base_model.layers_num)]
             self.batch_lora_B = [torch.zeros((4, self.max_lora_dim, emb_dim), dtype=torch.float16, device="cuda") for _ in range(self.base_model.layers_num)]

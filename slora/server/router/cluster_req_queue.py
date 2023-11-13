@@ -22,14 +22,15 @@ class ClusterReqQueue(ReqQueue):
             if req.aborted:
                 request_ids_to_remove_from_waiting_queue.add(req.request_id)
                 continue
-            if (self._can_add_new_req(req, lora_ranks) and
-                new_batch_total_tokens + req.input_len <= self.batch_max_tokens):
-                can_run_list.append(req)
-                new_batch_total_tokens += req.input_len
-                request_ids_to_remove_from_waiting_queue.add(req.request_id)
-            else:
+            if (
+                not self._can_add_new_req(req, lora_ranks)
+                or new_batch_total_tokens + req.input_len > self.batch_max_tokens
+            ):
                 break
-        
+
+            can_run_list.append(req)
+            new_batch_total_tokens += req.input_len
+            request_ids_to_remove_from_waiting_queue.add(req.request_id)
         self.waiting_req_list = list(filter(lambda req: req.request_id not in request_ids_to_remove_from_waiting_queue, self.waiting_req_list))
         request_ids_to_remove_from_waiting_queue = set()
 
@@ -39,14 +40,15 @@ class ClusterReqQueue(ReqQueue):
                 request_ids_to_remove_from_waiting_queue.add(req.request_id)
                 continue
 
-            if (self._can_add_new_req(req, lora_ranks) and
-                new_batch_total_tokens + req.input_len <= self.batch_max_tokens):
-                can_run_list.append(req)
-                new_batch_total_tokens += req.input_len
-                request_ids_to_remove_from_waiting_queue.add(req.request_id)
-            else:
+            if (
+                not self._can_add_new_req(req, lora_ranks)
+                or new_batch_total_tokens + req.input_len > self.batch_max_tokens
+            ):
                 break
-            
+
+            can_run_list.append(req)
+            new_batch_total_tokens += req.input_len
+            request_ids_to_remove_from_waiting_queue.add(req.request_id)
         self.waiting_req_list = list(filter(lambda req: req.request_id not in request_ids_to_remove_from_waiting_queue, self.waiting_req_list))
 
         return can_run_list

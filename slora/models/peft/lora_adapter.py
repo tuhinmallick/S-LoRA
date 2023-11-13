@@ -12,9 +12,8 @@ from slora.utils.model_load import hf_load_config
 def get_lora_config(lora_dir, dummy):
     if dummy:
         return get_lora_config_json(lora_dir), lora_dir
-    else:
-        lora_dir = re.sub(r'-(\d+)$', '', lora_dir)
-        return hf_load_config(lora_dir)
+    lora_dir = re.sub(r'-(\d+)$', '', lora_dir)
+    return hf_load_config(lora_dir)
 
 
 class LoraTpPartAdapter:

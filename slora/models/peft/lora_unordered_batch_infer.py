@@ -65,15 +65,26 @@ class LoraUnorderedBatchInfer:
             assert(len(self.req_bins)==len(b_seq_len))
             self.batch_req_bins = torch.repeat_interleave(self.req_bins, b_seq_len)
             # self.b_start_loc = torch.cumsum(torch.cat([torch.tensor([0], dtype=torch.long, device="cuda"), b_seq_len[:-1]]), dim=0)
-            for _ in range(3):
-                self.delta.append(torch.zeros((len(self.batch_req_bins), self.max_lora_dim), dtype=torch.float16, device="cuda"))
-
+            self.delta.extend(
+                torch.zeros(
+                    (len(self.batch_req_bins), self.max_lora_dim),
+                    dtype=torch.float16,
+                    device="cuda",
+                )
+                for _ in range(3)
+            )
             return self._prefill(batch_size, total_token_num, max_len_in_batch,
                                  input_ids,
                                  b_loc, b_start_loc, b_seq_len, no_lora_compute)
         else:
-            for _ in range(3):
-                self.delta.append(torch.zeros((len(b_seq_len), self.max_lora_dim), dtype=torch.float16, device="cuda"))
+            self.delta.extend(
+                torch.zeros(
+                    (len(b_seq_len), self.max_lora_dim),
+                    dtype=torch.float16,
+                    device="cuda",
+                )
+                for _ in range(3)
+            )
             return self._decode(batch_size, total_token_num, max_len_in_batch,
                                 input_ids,
                                 b_loc, b_start_loc, b_seq_len,
@@ -113,9 +124,8 @@ class LoraUnorderedBatchInfer:
                 (infer_state.total_token_num, self.base_model.tp_k_head_num_, self.base_model.head_dim_),
                 dtype=torch.float16, device="cuda")
         init_bloc(b_loc, b_seq_len, max_len_in_batch, infer_state.prefill_mem_index)
-        
-        predict_logics = self._context_forward(input_ids, infer_state, no_lora_compute)
-        return predict_logics
+
+        return self._context_forward(input_ids, infer_state, no_lora_compute)
 
 
     def _decode(self, batch_size, total_token_num, max_len_in_batch,
@@ -131,7 +141,7 @@ class LoraUnorderedBatchInfer:
         infer_state.b_loc = b_loc
         infer_state.b_start_loc = b_start_loc
         infer_state.b_seq_len = b_seq_len
-        
+
         infer_state.mem_manager = self.base_model.mem_manager
 
         alloc_mem = self.base_model.mem_manager.alloc_contiguous(batch_size)
@@ -140,7 +150,6 @@ class LoraUnorderedBatchInfer:
             infer_state.decode_mem_index = alloc_mem[0]
             infer_state.decode_mem_start = alloc_mem[1]
             infer_state.decode_mem_end = alloc_mem[2]
-            b_loc[:, max_len_in_batch - 1] = infer_state.decode_mem_index
         else:
             infer_state.decode_is_contiguous = False
             alloc_mem = self.base_model.mem_manager.alloc(batch_size)
@@ -151,12 +160,12 @@ class LoraUnorderedBatchInfer:
             infer_state.decode_value_buffer = torch.empty(
                     (batch_size, self.base_model.tp_k_head_num_, self.base_model.head_dim_),
                     dtype=torch.float16, device="cuda")
-            b_loc[:, max_len_in_batch - 1] = infer_state.decode_mem_index
-
+        b_loc[:, max_len_in_batch - 1] = infer_state.decode_mem_index
         infer_state.init_some_extra_state(self.base_model, batch_size, total_token_num, max_len_in_batch,
                                           input_ids, b_loc, b_start_loc, b_seq_len, False)
-        predict_logics = self._token_forward(input_ids, infer_state, no_lora_compute, no_lora_copy)
-        return predict_logics
+        return self._token_forward(
+            input_ids, infer_state, no_lora_compute, no_lora_copy
+        )
 
 
     @final
@@ -166,9 +175,12 @@ class LoraUnorderedBatchInfer:
                 cuda_input_ids, infer_state, self.base_model.pre_post_weight)
         for i in range(self.base_model.layers_num):
             input_embs = self._lora_context_forward(i, input_embs, infer_state, no_lora_compute)
-        predict_logics = self.base_model.post_infer.token_forward(
-                input_embs, infer_state, self.base_model.pre_post_weight, return_logics=True)
-        return predict_logics
+        return self.base_model.post_infer.token_forward(
+            input_embs,
+            infer_state,
+            self.base_model.pre_post_weight,
+            return_logics=True,
+        )
 
 
     @final
@@ -178,9 +190,12 @@ class LoraUnorderedBatchInfer:
                 cuda_input_ids, infer_state, self.base_model.pre_post_weight)
         for i in range(self.base_model.layers_num):
             input_embs = self._lora_token_forward(i, input_embs, infer_state, no_lora_compute, no_lora_copy)
-        predict_logics = self.base_model.post_infer.token_forward(
-                input_embs, infer_state, self.base_model.pre_post_weight, return_logics=True)
-        return predict_logics
+        return self.base_model.post_infer.token_forward(
+            input_embs,
+            infer_state,
+            self.base_model.pre_post_weight,
+            return_logics=True,
+        )
 
 
     @final

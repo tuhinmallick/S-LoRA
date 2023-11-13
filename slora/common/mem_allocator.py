@@ -42,16 +42,22 @@ class MemoryAllocator:
     def alloc_contiguous(self, need_size):
         if need_size > self.can_use_mem_size:
             raise Exception(f'warn no enough pool space: need_size {need_size} left_size {self.can_use_mem_size}')
-        
+
         torch.cumsum(self.mem_state, dim=0, dtype=torch.int32, out=self._mem_cum_sum)
-        loc_sums = self._mem_cum_sum[need_size - 1:self.tot_size] - self._mem_cum_sum[0:self.tot_size - need_size + 1] + self.mem_state[0:self.tot_size - need_size + 1]
-        can_used_loc = self.indexes[0:self.tot_size - need_size + 1][loc_sums == need_size]
+        loc_sums = (
+            self._mem_cum_sum[need_size - 1 : self.tot_size]
+            - self._mem_cum_sum[: self.tot_size - need_size + 1]
+            + self.mem_state[: self.tot_size - need_size + 1]
+        )
+        can_used_loc = self.indexes[: self.tot_size - need_size + 1][
+            loc_sums == need_size
+        ]
         if can_used_loc.shape[0] == 0:
             # print(f'warn no enough pool space: to contiguous need_size {need_size} left_size {self.can_use_mem_size}')
             return None
         start_loc = can_used_loc[0]
         select_index = self.indexes[start_loc : start_loc + need_size]
-        
+
         self.mem_state[select_index] = 0
         self.can_use_mem_size -= need_size
         start = start_loc.item()
@@ -61,7 +67,11 @@ class MemoryAllocator:
 
     def alloc_strip(self, need_block, block_size):
         torch.cumsum(self.mem_state, dim=0, dtype=torch.int32, out=self._mem_cum_sum)
-        loc_sums = self._mem_cum_sum[block_size - 1:self.tot_size] - self._mem_cum_sum[0:self.tot_size - block_size + 1] + self.mem_state[0:self.tot_size - block_size + 1]
+        loc_sums = (
+            self._mem_cum_sum[block_size - 1 : self.tot_size]
+            - self._mem_cum_sum[: self.tot_size - block_size + 1]
+            + self.mem_state[: self.tot_size - block_size + 1]
+        )
         loc_use = (loc_sums == block_size)
         torch.cumsum(loc_use, dim=0, dtype=torch.int32, out=loc_sums)
 
@@ -73,7 +83,7 @@ class MemoryAllocator:
         # (diff % block_size == 0) & loc_use
         mask = block_size - 1
         loc_use = (((loc_sums - cum_max) & mask) == 0) & loc_use
-        can_use_loc = self.indexes[0:self.tot_size - block_size + 1][loc_use == 1]
+        can_use_loc = self.indexes[:self.tot_size - block_size + 1][loc_use == 1]
         if can_use_loc.shape[0] < need_block:
             raise Exception(f"no enough pool space for alloc_strip, "
                             f"need {need_block} blocks, {can_use_loc.shape[0]} left")
@@ -90,12 +100,16 @@ class MemoryAllocator:
 
     def alloc_grid(self, need_grid, grid_size):
         torch.cumsum(self.mem_state, dim=0, dtype=torch.int32, out=self._mem_cum_sum)
-        loc_sums = self._mem_cum_sum[grid_size - 1:self.tot_size] - self._mem_cum_sum[0:self.tot_size - grid_size + 1] + self.mem_state[0:self.tot_size - grid_size + 1]
+        loc_sums = (
+            self._mem_cum_sum[grid_size - 1 : self.tot_size]
+            - self._mem_cum_sum[: self.tot_size - grid_size + 1]
+            + self.mem_state[: self.tot_size - grid_size + 1]
+        )
         loc_use = (loc_sums == grid_size)
 
         mask = grid_size - 1
         loc_use = ((self.indexes[:self.tot_size - grid_size + 1] & mask) == 0) & loc_use
-        can_use_loc = self.indexes[0:self.tot_size - grid_size + 1][loc_use == 1]
+        can_use_loc = self.indexes[:self.tot_size - grid_size + 1][loc_use == 1]
         if can_use_loc.shape[0] < need_grid:
             raise Exception(f"no enough pool space for alloc_strip, "
                             f"need {need_grid} grids, {can_use_loc.shape[0]} left")
@@ -127,16 +141,22 @@ class MemoryAllocator:
         assert False
         if need_size > self.can_use_mem_size_prefix:
             raise Exception(f'warn no enough pool space: need_size {need_size} left_size {self.can_use_mem_size_prefix}')
-        
+
         torch.cumsum(self.mem_state, dim=0, dtype=torch.int32, out=self._mem_cum_sum)
-        loc_sums = self._mem_cum_sum[need_size - 1:self.cache_size] - self._mem_cum_sum[0:self.cache_size - need_size + 1] + self.mem_state[0:self.cache_size - need_size + 1]
-        can_used_loc = self.indexes[0:self.cache_size - need_size + 1][loc_sums == need_size]
+        loc_sums = (
+            self._mem_cum_sum[need_size - 1 : self.cache_size]
+            - self._mem_cum_sum[: self.cache_size - need_size + 1]
+            + self.mem_state[: self.cache_size - need_size + 1]
+        )
+        can_used_loc = self.indexes[: self.cache_size - need_size + 1][
+            loc_sums == need_size
+        ]
         if can_used_loc.shape[0] == 0:
             # print(f'warn no enough pool space: to contiguous need_size {need_size} left_size {self.can_use_mem_size_prefix}')
             return None
         start_loc = can_used_loc[0]
         select_index = self.indexes[start_loc : start_loc + need_size]
-        
+
         self.mem_state[select_index] = 0
         self.can_use_mem_size_prefix -= need_size
         start = start_loc.item()
@@ -148,8 +168,6 @@ class MemoryAllocator:
         assert False
         if need_size > self.can_use_mem_size_suffix:
             raise Exception(f'warn no enough pool space: need_size {need_size} left_size {self.can_use_mem_size_suffix}')
-            return None
-        
         self._mem_cum_sum = suffix_cumsum(self.mem_state, dim=0, dtype=torch.int32)
         select_index = torch.logical_and(self._mem_cum_sum <= need_size, self.mem_state == 1)
         select_index = self.indexes[select_index]
@@ -162,19 +180,22 @@ class MemoryAllocator:
         assert False
         if need_size > self.can_use_mem_size_suffix:
             raise Exception(f'warn no enough pool space: need_size {need_size} left_size {self.can_use_mem_size_suffix}')
-            return None
-        
         self._mem_cum_sum = suffix_cumsum(self.mem_state, dim=0, dtype=torch.int32)
         assert len(self._mem_cum_sum) == self.cache_size
-        loc_sums = (self._mem_cum_sum[0:self.cache_size - need_size + 1] - self._mem_cum_sum[need_size - 1:] +
-                    self.mem_state[need_size - 1:])
-        can_used_loc = self.indexes[0:self.cache_size - need_size + 1][loc_sums == need_size]
+        loc_sums = (
+            self._mem_cum_sum[: self.cache_size - need_size + 1]
+            - self._mem_cum_sum[need_size - 1 :]
+            + self.mem_state[need_size - 1 :]
+        )
+        can_used_loc = self.indexes[: self.cache_size - need_size + 1][
+            loc_sums == need_size
+        ]
         if can_used_loc.shape[0] == 0:
             # print(f'warn no enough pool space: to contiguous need_size {need_size} left_size {self.can_use_mem_size_suffix}')
             return None
         start_loc = can_used_loc[0]
         select_index = self.indexes[start_loc : start_loc + need_size]
-        
+
         self.mem_state[select_index] = 0
         self.can_use_mem_size_suffix -= need_size
         start = start_loc.item()

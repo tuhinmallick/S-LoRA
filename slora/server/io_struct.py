@@ -75,22 +75,13 @@ class Batch:
             self.adapter_dirs.add(req.adapter_dir)
 
     def input_tokens(self):
-        batch_input_tokens = 0
-        for req in self.reqs:
-            batch_input_tokens += req.input_len
-        return batch_input_tokens
+        return sum(req.input_len for req in self.reqs)
 
     def calcu_max_tokens(self):
-        tokens = 0
-        for req in self.reqs:
-            tokens += req.input_len + req.max_output_len
-        return tokens
+        return sum(req.input_len + req.max_output_len for req in self.reqs)
     
     def calcu_used_tokens(self):
-        tokens = 0
-        for req in self.reqs:
-            tokens += req.input_len + len(req.output_ids)
-        return tokens
+        return sum(req.input_len + len(req.output_ids) for req in self.reqs)
 
     def mark_finished_req(self, eos_id):
         has_new_finish = False
@@ -107,16 +98,11 @@ class Batch:
         return has_new_finish
 
     def filter_finished(self):
-        unfinished_req = []
-        for req in self.reqs:
-            if not req.has_generate_finished:
-                unfinished_req.append(req)
+        unfinished_req = [req for req in self.reqs if not req.has_generate_finished]
         self.reqs = unfinished_req
         self.id_to_reqs = {req.request_id: req for req in self.reqs}
 
-        self.adapter_dirs = set()
-        for req in self.reqs:
-            self.adapter_dirs.add(req.adapter_dir)
+        self.adapter_dirs = {req.adapter_dir for req in self.reqs}
 
     def is_clear(self):
         return len(self.reqs) == 0

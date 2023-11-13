@@ -45,10 +45,7 @@ def _fwd_kernel_token_att2(
 
 @torch.no_grad()
 def token_att_fwd2(prob, v, out, B_Loc, B_Start_Loc, B_Seqlen, max_input_len):
-    if triton.__version__ >= "2.1.0":
-        BLOCK = 128
-    else:
-        BLOCK = 64
+    BLOCK = 128 if triton.__version__ >= "2.1.0" else 64
     batch, head = B_Loc.shape[0], v.shape[1]
     grid = (batch, head)
     num_warps = 4
@@ -112,10 +109,7 @@ def _fwd_kernel_token_att2_int8v(
 
 @torch.no_grad()
 def token_att_fwd2_int8v(prob, v, v_scale, out, B_Loc, B_Start_Loc, B_Seqlen, max_input_len):
-    if max_input_len < 512:
-        BLOCK = triton.next_power_of_2(max_input_len)
-    else:
-        BLOCK = 512
+    BLOCK = triton.next_power_of_2(max_input_len) if max_input_len < 512 else 512
     batch, head = B_Loc.shape[0], v.shape[1]
     grid = (batch, head)
     num_warps = 4
@@ -139,9 +133,7 @@ def token_att_fwd2_int8v(prob, v, v_scale, out, B_Loc, B_Start_Loc, B_Seqlen, ma
 def torch_att(V, P, bs, seqlen, num_head, head_dim):
     V = V.view(bs, seqlen, num_head, head_dim).transpose(1, 2)
     P = P.reshape(num_head, bs, 1, seqlen).transpose(0, 1)
-    out = torch.matmul(P, V)
-
-    return out
+    return torch.matmul(P, V)
 
 
 def test1():
@@ -173,7 +165,7 @@ def test1():
         token_att_fwd2(Prob, V, Out, b_loc, b_start_loc, b_seq_len, N_CTX)
     torch.cuda.synchronize()
     t2 = time.time()
-    print("Time cost {}".format((t2 - t1) / run_iter))
+    print(f"Time cost {(t2 - t1) / run_iter}")
     torch_out = torch_att(V, Prob, B, N_CTX, H, D).squeeze()
     o = Out
     print("max ", torch.max(torch.abs(torch_out - o)))
@@ -213,7 +205,7 @@ def test2():
         token_att_fwd2_int8v(Prob, int_V, V_scale, Out, b_loc, b_start_loc, b_seq_len, N_CTX)
     torch.cuda.synchronize()
     t2 = time.time()
-    print("Time cost {}".format((t2 - t1) / run_iter))
+    print(f"Time cost {(t2 - t1) / run_iter}")
     torch_out = torch_att(V, Prob, B, N_CTX, H, D).squeeze()
     o = Out
     print("max ", torch.max(torch.abs(torch_out - o)))

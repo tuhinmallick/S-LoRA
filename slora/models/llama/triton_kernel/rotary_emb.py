@@ -54,11 +54,7 @@ def rotary_emb_fwd(q, cos, sin):
     BLOCK_HEAD = 4
     BLOCK_SEQ = 32
     grid = (triton.cdiv(head_num, BLOCK_HEAD), triton.cdiv(total_len, BLOCK_SEQ))
-    if head_dim >= 128:
-        num_warps = 8
-    else:
-        num_warps = 4
-
+    num_warps = 8 if head_dim >= 128 else 4
     _rotary_kernel[grid](
         q, cos, sin,
         q.stride(0), q.stride(1), q.stride(2),

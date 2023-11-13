@@ -24,7 +24,7 @@ REQUEST_LATENCY: List[Tuple[int, int, float]] = []
 
 
 def get_peak_mem(server):
-    url = server + "/get_peak_mem"
+    url = f"{server}/get_peak_mem"
     response = requests.post(url)
     return response.json()["peak_mem"]
 
@@ -43,7 +43,7 @@ async def send_request(
     request_start_time = time.time()
     headers = {'Content-Type': 'application/json'}
     headers = {"User-Agent": "Benchmark Client"}
-    url = server + "/generate"
+    url = f"{server}/generate"
     data = {
         'model_dir': model_dir,
         'lora_dir': adapter_dir,
@@ -83,12 +83,12 @@ async def send_request(
             if "bactrian-x-llama-7b-lora" in data["lora_dir"] and id==1:
                 output_ref = 'France and is one of the most visited cities in the world. It is known for its iconic landmarks such as the Eiffel Tower, the Louvre Museum, and the Notre-Dame Cathedral. It is also a hub for fashion, art, and culture, and is home to some of the world’s best restaurants and cafes.\nThe city is divided into 20 arrondissements, each with its own unique character'.encode()
                 assert output['generated_text'][0].encode() == output_ref
-            
+
             break
 
     request_end_time = time.time()
     request_latency = request_end_time - request_start_time
-    
+
     return (prompt_len, output_len, request_latency, first_token_latency)
 
 
@@ -109,20 +109,18 @@ async def benchmark(
                                                 req.req_id, req.model_dir, req.adapter_dir, req.prompt,
                                                 req.prompt_len, req.output_len, debug, id))
         tasks.append(task)
-    latency = await asyncio.gather(*tasks)
-    return latency
+    return await asyncio.gather(*tasks)
 
 
 def get_adapter_dirs(num_adapters):
     ret = []
     for i in range(num_adapters // len(adapter_dirs) + 1):
-        for adapter_dir in adapter_dirs:
-            ret.append(adapter_dir + f"-{i}")
+        ret.extend(f"{adapter_dir}-{i}" for adapter_dir in adapter_dirs)
     return ret
 
 
 def run_exp(server, config, seed=42):
-    print([(k, v) for k, v in zip(BenchmarkConfig._fields, config)])
+    print(list(zip(BenchmarkConfig._fields, config)))
 
     num_adapters, alpha, req_rate, cv, duration, input_range, output_range = config
     # assert duration >= 30
@@ -138,7 +136,7 @@ def run_exp(server, config, seed=42):
                                  seed=seed, id=1)
 
     # benchmark
-    
+
     _ = asyncio.run(benchmark(server, requests1, id=0))
     _ = asyncio.run(benchmark(server, requests2, id=1))
 

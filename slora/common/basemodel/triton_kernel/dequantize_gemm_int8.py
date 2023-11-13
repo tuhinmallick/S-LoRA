@@ -65,11 +65,7 @@ def matmul_dequantize_int8(a, b, b_scale, out=None):
     # assert b.is_contiguous(), "Matrix B must be contiguous"
     M, K = a.shape
     K, N = b.shape
-    if out == None:
-        # Allocates output.
-        c = torch.empty((M, N), device=a.device, dtype=a.dtype)
-    else:
-        c = out
+    c = torch.empty((M, N), device=a.device, dtype=a.dtype) if out is None else out
     fp_b = torch.empty((K, N), device=a.device, dtype=a.dtype)
     grid = lambda META: (
         triton.cdiv(K, META['BLOCK_SIZE_K']), triton.cdiv(N, META['BLOCK_SIZE_N']),
@@ -98,7 +94,7 @@ def quantize_int8(weight, axis=0):
 def test_int8(M, K, N):
     import time
 
-    print("M: {} K: {} N: {}".format(M, K, N))
+    print(f"M: {M} K: {K} N: {N}")
     torch.manual_seed(0)
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
@@ -192,7 +188,7 @@ def test_model_layer(bs, sqe_len, hidden, inter, tp):
     t1, t2 = test_int8(bs * sqe_len, inter // tp, hidden)
     st1 += t1
     st2 += t2
-    print("Triton time {} Torch time {}".format(st1, st2))
+    print(f"Triton time {st1} Torch time {st2}")
 
 
 if __name__ == "__main__":

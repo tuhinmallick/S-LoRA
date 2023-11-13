@@ -32,17 +32,21 @@ class MemoryManager:
         if need_size > self.can_use_mem_size:
             print(f'warn no enough cache need_size {need_size} left_size {self.can_use_mem_size}')
             return None
-        
+
         torch.cumsum(self.mem_state, dim=0, dtype=torch.int32, out=self._mem_cum_sum)
         sum_size = len(self._mem_cum_sum)
-        loc_sums = self._mem_cum_sum[need_size - 1:] - self._mem_cum_sum[0:sum_size - need_size + 1] + self.mem_state[0:sum_size - need_size + 1]
-        can_used_loc = self.indexes[0:sum_size - need_size + 1][loc_sums == need_size]
+        loc_sums = (
+            self._mem_cum_sum[need_size - 1 :]
+            - self._mem_cum_sum[: sum_size - need_size + 1]
+            + self.mem_state[: sum_size - need_size + 1]
+        )
+        can_used_loc = self.indexes[:sum_size - need_size + 1][loc_sums == need_size]
         if can_used_loc.shape[0] == 0:
             # print(f'warn no enough cache to contiguous need_size {need_size} left_size {self.can_use_mem_size}')
             return None
         start_loc = can_used_loc[0]
         select_index = self.indexes[start_loc : start_loc + need_size]
-        
+
         self.mem_state[select_index] = 0
         self.can_use_mem_size -= len(select_index)
         start = start_loc.item()

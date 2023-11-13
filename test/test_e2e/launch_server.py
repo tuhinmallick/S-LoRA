@@ -18,14 +18,14 @@ if __name__ == "__main__":
     parser.add_argument("--no-mem-pool", action="store_true")
     args = parser.parse_args()
 
-    
+
     if args.num_adapter is None: args.num_adapter = 4
     if args.num_token is None: args.num_token = 10000
     if args.pool_size_lora is None: args.pool_size_lora = 0
- 
+
     cmd = f"python -m slora.server.api_server --max_total_token_num {args.num_token}"
     cmd += f" --model {base_model}"
-    cmd += f" --tokenizer_mode auto"
+    cmd += " --tokenizer_mode auto"
     cmd += f" --pool-size-lora {args.pool_size_lora}"
 
     num_iter = args.num_adapter // len(adapter_dirs) + 1

@@ -228,13 +228,7 @@ class LoraLayerWeight:
 
 
     def load_to_gpu(self, prefetch=False, bmm=False):
-        if not bmm:
-            if self.w_combined is None:
-                if prefetch:
-                    self.w_combined = self.w_combined_home.to("cuda", non_blocking=True)
-                else:
-                    self.w_combined = self.w_combined_home.to("cuda", non_blocking=True)
-        else:
+        if bmm:
             if self.q_lora_A is None:
                 self.q_lora_A = self.q_lora_A_home.to("cuda", non_blocking=True)
                 self.q_lora_B = self.q_lora_B_home.to("cuda", non_blocking=True)
@@ -244,6 +238,9 @@ class LoraLayerWeight:
                 self.v_lora_B = self.v_lora_B_home.to("cuda", non_blocking=True)
                 self.o_lora_A = self.o_lora_A_home.to("cuda", non_blocking=True)
                 self.o_lora_B = self.o_lora_B_home.to("cuda", non_blocking=True)
+
+        elif self.w_combined is None:
+            self.w_combined = self.w_combined_home.to("cuda", non_blocking=True)
  
 
     def offload_from_gpu(self):

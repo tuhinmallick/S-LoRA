@@ -7,7 +7,7 @@ class LoRAConfig:
     
     def __init__(self, name: str, config=None, weight_dir=None):
         self.name = name
-        
+
         if weight_dir is not None:
             weight_dir = re.sub(r'-(\d+)$', '', weight_dir)
             config, _ = hf_load_config(weight_dir)
@@ -35,16 +35,7 @@ class LoRAConfig:
                     "v_proj",
                     "o_proj",
                     ]
-        elif "dummy-lora-7b-rank" in name:
-            self.base_model = None
-            self.rank = int(re.search(r'rank-(\d+)', name).group(1))
-            self.target_modules = [
-                    "q_proj",
-                    "k_proj",
-                    "v_proj",
-                    "o_proj",
-                    ]
-        elif "dummy-lora-13b-rank" in name:
+        elif "dummy-lora-7b-rank" in name or "dummy-lora-13b-rank" in name:
             self.base_model = None
             self.rank = int(re.search(r'rank-(\d+)', name).group(1))
             self.target_modules = [

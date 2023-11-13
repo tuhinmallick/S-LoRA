@@ -208,7 +208,7 @@ def test1():
          token_att_fwd(q, k, att_out, b_loc, b_start_loc, b_seq_len, N_CTX)
     torch.cuda.synchronize()
     t2 = time.time()
-    print("Time cost {}".format((t2 - t1) / run_iter))
+    print(f"Time cost {(t2 - t1) / run_iter}")
 
     torch_out = torch_att(q, k, B, N_CTX, H, D).squeeze()
     o = att_out.squeeze()
@@ -249,7 +249,7 @@ def test2():
         token_att_fwd_int8k(q, int_k, k_scale, att_out, b_loc, b_start_loc, b_seq_len, N_CTX)
     torch.cuda.synchronize()
     t2 = time.time()
-    print("Time cost {}".format((t2 - t1) / run_iter))
+    print(f"Time cost {(t2 - t1) / run_iter}")
     print(att_out.min(), att_out.max())
     torch_out = torch_att(q, k, B, N_CTX, H, D).squeeze()
     o = att_out.squeeze()

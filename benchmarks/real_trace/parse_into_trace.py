@@ -58,14 +58,14 @@ def generate_model_mapping(conversations):
 
 def sort_and_rescale_by_req_time(conversations, duration):
     # sort first
-    sorted_conversations = sorted(conversations, key=lambda d: d['tstamp']) 
+    sorted_conversations = sorted(conversations, key=lambda d: d['tstamp'])
     interval_start = sorted_conversations[0]["tstamp"]
     interval_end = sorted_conversations[-1]["tstamp"]
     # print(f"sorted time step: {[s['tstamp'] for s in sorted_conversations]}")
 
     for conv in conversations:
         tstamp = conv["tstamp"]
-        assert interval_start <= tstamp and tstamp <= interval_end
+        assert interval_start <= tstamp <= interval_end
         rescaled_tstamp = (tstamp - interval_start) / (interval_end - interval_start) + interval_start
         conv["tstamp"] = rescaled_tstamp
     return sorted_conversations 

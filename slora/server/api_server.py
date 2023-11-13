@@ -156,9 +156,7 @@ async def generate_stream(request: Request) -> Response:
                 "details": None
             }
 
-            yield ("data:" + json.dumps(ret, ensure_ascii=False) + f"\n\n").encode(
-                "utf-8"
-            )
+            yield (f"data:{json.dumps(ret, ensure_ascii=False)}" + f"\n\n").encode("utf-8")
 
     async def abort_request() -> None:
         await httpserver_manager.abort(request_id)
@@ -262,7 +260,9 @@ async def chat_completions(
                 model=request.model,
                 choices=[stream_choice],
             )
-            yield ("data: " + stream_resp.json(ensure_ascii=False) + f"\n\n").encode("utf-8")
+            yield (
+                f"data: {stream_resp.json(ensure_ascii=False)}" + f"\n\n"
+            ).encode("utf-8")
 
     async def abort_request() -> None:
         await httpserver_manager.abort(request_id)
@@ -389,7 +389,7 @@ def main():
     can_use_ports = alloc_can_use_network_port(
         num=3 + args.tp, used_nccl_port=args.nccl_port
     )
-    router_port, detokenization_port, httpserver_port = can_use_ports[0:3]
+    router_port, detokenization_port, httpserver_port = can_use_ports[:3]
     model_rpc_ports = can_use_ports[3:]
 
     global httpserver_manager

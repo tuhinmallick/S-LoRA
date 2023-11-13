@@ -11,10 +11,7 @@ class ServeParams:
     
    
     def to_dict(self):
-        ret = {}
-        ret["first_slo"] = self.first_slo
-        ret["token_slo"] = self.token_slo
-        return ret
+        return {"first_slo": self.first_slo, "token_slo": self.token_slo}
 
 
 class InputParams:

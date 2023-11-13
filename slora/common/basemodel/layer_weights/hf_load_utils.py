@@ -12,7 +12,7 @@ def load_hf_weights(data_type, weight_dir, pre_post_layer=None, transformer_laye
         assert pre_post_layer.data_type_ == data_type, "type is not right"
     if transformer_layer_list is not None:
         assert transformer_layer_list[0].data_type_ == data_type, "type is not right"
-    
+
     if dummy:
         if pre_post_layer is not None:
             pre_post_layer.load_hf_weights(None, dummy=dummy)
@@ -25,10 +25,12 @@ def load_hf_weights(data_type, weight_dir, pre_post_layer=None, transformer_laye
     use_safetensors = True
     files = os.listdir(weight_dir)
     candidate_files = list(filter(lambda x : x.endswith('.safetensors'), files))
-    if len(candidate_files) == 0:
+    if not candidate_files:
         use_safetensors = False
         candidate_files = list(filter(lambda x : x.endswith('.bin'), files))
-    assert len(candidate_files) != 0, "can only support pytorch tensor and safetensors format for weights."
+    assert (
+        candidate_files
+    ), "can only support pytorch tensor and safetensors format for weights."
     for file_ in candidate_files:
         if use_safetensors:
             weights = safe_open(os.path.join(weight_dir, file_), 'pt', 'cpu')

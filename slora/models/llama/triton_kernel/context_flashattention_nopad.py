@@ -94,7 +94,7 @@ if triton.__version__ >= "2.1.0":
         BLOCK = 128
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
-        assert Lq == Lk and Lk == Lv
+        assert Lq == Lk == Lv
         assert Lk in {16, 32, 64, 128}
 
         sm_scale = 1.0 / (Lq**0.5)  # 计算scale系数
@@ -210,7 +210,7 @@ elif triton.__version__ == "2.0.0":
         BLOCK = 128
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
-        assert Lq == Lk and Lk == Lv
+        assert Lq == Lk == Lv
         assert Lk in {16, 32, 64, 128}
 
         sm_scale = 1.0 / (Lq**0.5)
@@ -257,8 +257,12 @@ def torch_att(xq, xk, xv, bs, seqlen, num_head, head_dim):
     values = values.transpose(1, 2)
     scores = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(head_dim)
     scores = F.softmax(scores.float() + mask, dim=-1).type_as(xq)
-    output = torch.matmul(scores, values).transpose(1, 2).contiguous().reshape(-1, num_head, head_dim)
-    return output
+    return (
+        torch.matmul(scores, values)
+        .transpose(1, 2)
+        .contiguous()
+        .reshape(-1, num_head, head_dim)
+    )
 
 
 def test():

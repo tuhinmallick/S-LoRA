@@ -37,7 +37,7 @@ REQUEST_LATENCY: List[Tuple[int, int, float]] = []
 
 
 def get_peak_mem(server):
-    url = server + "/get_peak_mem"
+    url = f"{server}/get_peak_mem"
     response = requests.post(url)
     return response.json()["peak_mem"]
 
@@ -55,26 +55,23 @@ def benchmark(
     first_token_time = [None] * len(all_requests)
     latency = [None] * len(all_requests)
 
-    while len(all_requests) > 0:
-        # check the current queue
-        queue = []
-        for req in all_requests:
-            if req.req_time < time.time() - start:
-                queue.append(req)
-            # else: # last possible request 
-            #    continue
-
-        if len(queue) > 0:
+    while all_requests:
+        if queue := [
+            req for req in all_requests if req.req_time < time.time() - start
+        ]:
             print(f"processing {queue}")
             # sort the queue of the same adapter 
             grouped_queue = {}
             for req in queue:
                 key = req.adapter_dir
-                if key in grouped_queue.keys():
+                if key in grouped_queue:
                     grouped_queue[key].append(req)
                 else:
                     grouped_queue[key] = [req]
-            
+
+            # peft easily OOM, manually set this max batch size 
+            # main 
+            max_batch_size = 6
             for adapter_dir, group_reqs in grouped_queue.items():
                 # load the current adapter
                 try:
@@ -89,9 +86,6 @@ def benchmark(
                     cur_model = loaded_base_model
 
                 cur_model.eval()
-                # peft easily OOM, manually set this max batch size 
-                # main 
-                max_batch_size = 6
                 # tab3 llama 7b
                 # max_batch_size = 50
                 # tab3 llama 13b
@@ -102,11 +96,11 @@ def benchmark(
                         subgrouped_queue[-1].append(subgroup_req)
                     else:
                         subgrouped_queue.append([subgroup_req])
-                
+
                 for reqs in subgrouped_queue:
-                    # generate 
-                    padded_prompt_length = max([r.prompt_len for r in reqs])
-                    padded_output_length = max([r.output_len for r in reqs])
+                    # generate
+                    padded_prompt_length = max(r.prompt_len for r in reqs)
+                    padded_output_length = max(r.output_len for r in reqs)
                     padded_prompt = [dummy_prompt(padded_prompt_length) for _ in range(len(reqs))]
                     # pad to the maximum length and do batching
                     input_ids = loaded_tokenizer(padded_prompt).input_ids
@@ -116,8 +110,6 @@ def benchmark(
                     for i in range(padded_output_length):
                         if i == 0:  # prefill
                             out = cur_model(torch.as_tensor(input_ids, device="cuda"), use_cache=True)
-                            logits = out.logits
-                            past_key_values = out.past_key_values
                             # update first token latency
                             for _req in reqs:
                                 first_token_time[_req.req_id] = time.time() - (start + _req.req_time)
@@ -133,8 +125,8 @@ def benchmark(
                                 use_cache=True,
                                 past_key_values=past_key_values,
                             )
-                            logits = out.logits
-                            past_key_values = out.past_key_values
+                        past_key_values = out.past_key_values
+                        logits = out.logits
                         last_token_logits = logits[:, -1, :]
                         # greedy
                         _, indices = torch.topk(last_token_logits, 1)
@@ -164,10 +156,10 @@ def benchmark(
                                 latency[reqs[j].req_id] = (reqs[j].prompt_len, reqs[j].output_len, time.time() - (start + reqs[j].req_time), first_token_time[reqs[j].req_id])
                             index_in_kv_cache += 1
                         past_key_values = tuple(
-                                        [tuple([t[keep_idx, :] for t in tt])
-                                        for tt in past_key_values]
-                                    )
-                        # print(token, output_ids)
+                            tuple(t[keep_idx, :] for t in tt)
+                            for tt in past_key_values
+                        )
+                                            # print(token, output_ids)
                     # detokenize
                     loaded_tokenizer.batch_decode(
                         output_ids,
@@ -175,7 +167,7 @@ def benchmark(
                         spaces_between_special_tokens=False,
                         clean_up_tokenization_spaces=True,
                     )
-        
+
             # finish, remove from all_requests
             all_requests = all_requests[len(queue):]
             print(f"all_requests len {len(all_requests)} time elapsed: {time.time() - start}")
@@ -227,14 +219,9 @@ def get_res_stats(per_req_latency, benchmark_time, backend, warmup_time=0, warmu
     avg_attainment = np.mean(attainment)
     print(f"Average attainment: {avg_attainment:.2f}")
 
-    # dump results
-    if backend == "slora":
-        # TODO
-        # single_gpu_peak_mem = peak_mem
-        single_gpu_peak_mem = 0
-    else:
-        single_gpu_peak_mem = 0
-
+    # TODO
+    # single_gpu_peak_mem = peak_mem
+    single_gpu_peak_mem = 0
     result = {"total_time": benchmark_time, "gpu_peak_mem": single_gpu_peak_mem,
               "throughput": throughput, "strip_throughput": strip_throughput,
               "avg_latency": avg_latency, "avg_per_token_latency": avg_per_token_latency,
@@ -242,9 +229,7 @@ def get_res_stats(per_req_latency, benchmark_time, backend, warmup_time=0, warmu
               "avg_first_token_latency": avg_first_token_latency,
               "avg_satisfaction": avg_satisfaction,
               "avg_attainment": avg_attainment}
-    res = {"config": to_dict(config), "result": result}
-    
-    return res
+    return {"config": to_dict(config), "result": result}
 
 def get_gpu_memory(max_gpus=None):
     """Get available memory for each GPU."""
@@ -269,7 +254,7 @@ def get_gpu_memory(max_gpus=None):
 def run_exp(model_setting, backend, server, config, output, num_gpus, mode, seed=42, debug=False):
     if mode == "real":
         print("*** num_adapters, cv and alpha are not used in real mode ***")
-    print([(k, v) for k, v in zip(BenchmarkConfig._fields, config)])
+    print(list(zip(BenchmarkConfig._fields, config)))
 
     num_adapters, alpha, req_rate, cv, duration, input_range, output_range = config
     # assert duration >= 30
@@ -290,22 +275,20 @@ def run_exp(model_setting, backend, server, config, output, num_gpus, mode, seed
         adapter_dirs, requests = get_real_requests(trace_file="real_trace/clean_chat_conv_20231016.json", req_rate=req_rate, duration=duration,
                                       adapter_dirs=adapter_dirs, input_range=input_range, output_range=output_range, seed=seed)
         print(requests)
-    
+
     # load base model outside so it does not count time
     print(base_model)
-    
-    kwargs = {"torch_dtype": torch.bfloat16}
-    kwargs["device_map"] = "sequential"
+
+    kwargs = {"torch_dtype": torch.bfloat16, "device_map": "sequential"}
     available_gpu_memory = get_gpu_memory(num_gpus)
     kwargs["max_memory"] = {
-        i: str(int(available_gpu_memory[i] * 0.15)) + "GiB"
-        for i in range(num_gpus)
+        i: f"{int(available_gpu_memory[i] * 0.15)}GiB" for i in range(num_gpus)
     }
     loaded_base_model = AutoModelForCausalLM.from_pretrained(base_model, **kwargs)
     loaded_tokenizer = AutoTokenizer.from_pretrained(base_model)
     #for r in requests:
     #    print(r.adapter_dir)
-    
+
     if debug:
         print("num requests:", len(requests))
         for req in requests[:4]:
@@ -348,11 +331,11 @@ if __name__ == "__main__":
 
     assert not args.no_lora_copy or args.no_lora_compute
     assert not (args.debug and args.breakdown)
-    
+
     args.backend = "peft"
     # set output file name
     if args.output is None:
-        args.output = f"all_results_{args.mode}_" + args.backend + ".jsonl"
+        args.output = f"all_results_{args.mode}_{args.backend}.jsonl"
 
     suites = get_all_suites(mode=args.mode, debug=args.debug, suite=args.suite, breakdown=args.breakdown)
 

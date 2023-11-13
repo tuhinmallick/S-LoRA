@@ -422,15 +422,15 @@ def quantize_int4(weight, group_size=128):
     # zero_pint shape: [H1 // group_size, H2 // 8]
     weight = weight.transpose(1, 0)
     h1, h2 = weight.shape
-    assert h1 % 8 == 0 and h2 % 8 == 0, "H1 {} H2 {}".format(h1, h2)
-    assert h2 % group_size == 0, "H1 {} H2 {}".format(h1, h2)
+    assert h1 % 8 == 0 and h2 % 8 == 0, f"H1 {h1} H2 {h2}"
+    assert h2 % group_size == 0, f"H1 {h1} H2 {h2}"
 
     weight = weight.contiguous().view(-1, group_size).cuda()
     weight_max = weight.amax(-1, keepdim=True)
     weight_max = torch.where(weight_max < 0, 0, weight_max)
     weight_min = weight.amin(-1, keepdim=True)
     weight_min = torch.where(weight_min > 0, 0, weight_min)
-    weight_range = weight_max - weight_min 
+    weight_range = weight_max - weight_min
     scale = weight_range / (2 ** 4 - 1)
     zero_point = (-weight_min / scale).round().clamp(0, 15).to(torch.int32)
     weight = (weight / scale + zero_point).round().clamp(0, 15).to(torch.int32).view(h1, h2)
@@ -495,7 +495,7 @@ def unpack_int4(weight, scale, zp):
 def test_int4(M, K, N):
     import time
 
-    print("M: {} K: {} N: {}".format(M, K, N))
+    print(f"M: {M} K: {K} N: {N}")
     a = torch.randn((M, K), device='cuda', dtype=torch.float16)
     b = torch.randn((K, N), device='cuda', dtype=torch.float16)
     int_b, b_scale, b_zero_point = quantize_int4(b)
@@ -630,7 +630,7 @@ def test_model_layer(bs, sqe_len, hidden, inter, tp):
     t1, t2 = test_int4(bs * sqe_len, inter // tp, hidden)
     st1 += t1
     st2 += t2
-    print("Triton time {} Torch time {}".format(st1, st2))
+    print(f"Triton time {st1} Torch time {st2}")
 
 
 if __name__ == "__main__":

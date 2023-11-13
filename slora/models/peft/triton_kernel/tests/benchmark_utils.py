@@ -58,11 +58,7 @@ def bench(
     warmup: int = 100,
     repeat: int = 500,
 ) -> BenchResult:
-  if isinstance(f, Benchmark):
-    b = f
-  else:
-    b = wrap_benchmark(f)
-
+  b = f if isinstance(f, Benchmark) else wrap_benchmark(f)
   cache = torch.empty(256 * 2**20, dtype=torch.int8, device="cuda:0")
   b.setup()
 

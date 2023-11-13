@@ -97,13 +97,13 @@ if triton.__version__ >= "2.1.0":
         BLOCK = 128
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
-        assert Lq == Lk and Lk == Lv
+        assert Lq == Lk == Lv
         assert Lk in {16, 32, 64, 128}
 
         sm_scale = 1.0 / (Lq**0.5)  # 计算scale系数
         batch, head = b_seq_len.shape[0], q.shape[1]
         kv_group_num = q.shape[1] // k.shape[1]
-        
+
         grid = (batch, head, triton.cdiv(max_input_len, BLOCK))  # batch, head,
 
         num_warps = 4 if Lk <= 64 else 8
@@ -218,13 +218,13 @@ elif triton.__version__ == "2.0.0":
         BLOCK = 128
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
-        assert Lq == Lk and Lk == Lv
+        assert Lq == Lk == Lv
         assert Lk in {16, 32, 64, 128}
 
         sm_scale = 1.0 / (Lq**0.5)
         batch, head = b_seq_len.shape[0], q.shape[1]
         kv_group_num = q.shape[1] // k.shape[1]
-        
+
         grid = (batch, head, triton.cdiv(max_input_len, BLOCK))
 
         tmp = torch.empty((batch, head, max_input_len + 256), device=q.device, dtype=torch.float32)

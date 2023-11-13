@@ -24,7 +24,6 @@ class BaseLayerWeight:
         verify all load is ok
         """
         raise Exception("must verify weights load ok")
-        pass
 
     def _cuda(self, cpu_tensor):
         return cpu_tensor.contiguous().to(self.data_type_).cuda()

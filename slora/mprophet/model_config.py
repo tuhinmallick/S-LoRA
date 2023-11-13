@@ -100,18 +100,17 @@ class ModelConfig:
 
 
     def _init_from_dict(self, config):
-        if "llama" in self.name.lower():
-            if "max_sequence_length" in config:
-                self.max_seq_len = config["max_sequence_length"]
-            else:
-                self.max_seq_len = config["max_position_embeddings"]
-            self.num_hidden_layers = config["num_hidden_layers"]
-            self.n_head = config["num_attention_heads"]
-            self.hidden_size = config["hidden_size"]
-            self.ffn_embed_dim = config["intermediate_size"]
-            self.vocab_size = config["vocab_size"]
-        else:
+        if "llama" not in self.name.lower():
             raise NotImplementedError
+        if "max_sequence_length" in config:
+            self.max_seq_len = config["max_sequence_length"]
+        else:
+            self.max_seq_len = config["max_position_embeddings"]
+        self.num_hidden_layers = config["num_hidden_layers"]
+        self.n_head = config["num_attention_heads"]
+        self.hidden_size = config["hidden_size"]
+        self.ffn_embed_dim = config["intermediate_size"]
+        self.vocab_size = config["vocab_size"]
 
 
 def get_config_json(name):

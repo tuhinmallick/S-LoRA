@@ -33,7 +33,7 @@ class AbortReqQueue(ReqQueue):
     def generate_new_batch(self, current_batch:Batch, lora_ranks: dict[str, int]):
         if current_batch is not None and len(current_batch.reqs) >= self.running_max_req_size:
             return None
-        
+
         self._init_cache_list(current_batch, lora_ranks)
         can_run_list = []
         abort_list = []
@@ -49,7 +49,7 @@ class AbortReqQueue(ReqQueue):
                 self.abort_req_list.append(req.request_id)
         self.req_time_stamp = [self.req_time_stamp[i] for i in range(len(self.req_time_stamp)) if self.waiting_req_list[i] not in abort_list]
         self.waiting_req_list = [req for req in self.waiting_req_list if req not in abort_list]
-            
+
         if self.apprx_req_rate >= self.apprx_bs:
             print("apprx bs", self.apprx_bs, "req rate", self.apprx_req_rate)
             # choose from the latest requests
@@ -58,32 +58,35 @@ class AbortReqQueue(ReqQueue):
                     aborted_count += 1
                     abort_list.append(req)
                     continue
-                if (self._can_add_new_req(req, lora_ranks) and
-                    new_batch_total_tokens + req.input_len <= self.batch_max_tokens):
-                    can_run_list.append(req)
-                    new_batch_total_tokens += req.input_len
-                else:
+                if (
+                    not self._can_add_new_req(req, lora_ranks)
+                    or new_batch_total_tokens + req.input_len
+                    > self.batch_max_tokens
+                ):
                     break
-        elif self.apprx_req_rate < self.apprx_bs:
+                can_run_list.append(req)
+                new_batch_total_tokens += req.input_len
+        else:
             # choose from the earliest requests
             for req in reversed(self.waiting_req_list):
                 if req.aborted:
                     aborted_count += 1
                     abort_list.append(req)
                     continue
-                if (self._can_add_new_req(req, lora_ranks) and
-                    new_batch_total_tokens + req.input_len <= self.batch_max_tokens):
-                    can_run_list.append(req)
-                    new_batch_total_tokens += req.input_len
-                else:
+                if (
+                    not self._can_add_new_req(req, lora_ranks)
+                    or new_batch_total_tokens + req.input_len
+                    > self.batch_max_tokens
+                ):
                     break
-                
-        if len(can_run_list) != 0:
-            new_batch = Batch(uuid.uuid4().hex, can_run_list)
-            self.req_time_stamp = [self.req_time_stamp[i] for i in range(len(self.req_time_stamp)) if self.waiting_req_list[i] not in can_run_list and self.waiting_req_list[i] not in abort_list]
-            self.waiting_req_list = [req for req in self.waiting_req_list if req not in can_run_list and req not in abort_list]
-            self.last_req_num = len(self.waiting_req_list)
-            self.apprx_bs = max(int(0.7 * len(new_batch.reqs) + 0.3 * self.apprx_bs), self.init_bs)
-            return new_batch
-        else:
+
+                can_run_list.append(req)
+                new_batch_total_tokens += req.input_len
+        if not can_run_list:
             return None
+        new_batch = Batch(uuid.uuid4().hex, can_run_list)
+        self.req_time_stamp = [self.req_time_stamp[i] for i in range(len(self.req_time_stamp)) if self.waiting_req_list[i] not in can_run_list and self.waiting_req_list[i] not in abort_list]
+        self.waiting_req_list = [req for req in self.waiting_req_list if req not in can_run_list and req not in abort_list]
+        self.last_req_num = len(self.waiting_req_list)
+        self.apprx_bs = max(int(0.7 * len(new_batch.reqs) + 0.3 * self.apprx_bs), self.init_bs)
+        return new_batch

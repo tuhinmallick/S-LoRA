@@ -87,10 +87,7 @@ def test_bgmv():
     for i in range(N):
         a_id = batch_req_bins[i]
         a_w = key_buffer[a_start[a_id] + qkvo * R: a_start[a_id] + (qkvo + 1) * R]
-        if part == "A":
-            a_w = a_w.reshape(R, H).T
-        else:
-            a_w = a_w.reshape(H, R).T
+        a_w = a_w.reshape(R, H).T if part == "A" else a_w.reshape(H, R).T
         results.append(x[i:i+1, :] @ a_w)
     ref = delta_qA + torch.concat(results)
 

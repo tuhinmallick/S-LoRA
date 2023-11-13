@@ -20,20 +20,16 @@ class PETSReqQueue(ReqQueue):
         return
     
     def _init_cache_list(self, current_batch:Batch, lora_ranks):
+        self.cache_len_list = []
+        self.adapters = set()
+        self.adapter_size = 0
         if current_batch is not None:
-            self.cache_len_list = []
-            self.adapters = set()
-            self.adapter_size = 0
             for req in current_batch.reqs:
                 self.cache_len_list.append((req.input_len + len(req.output_ids),
                                            req.max_output_len - len(req.output_ids) - 1))
                 if req.adapter_dir not in self.adapters:
                     self.adapter_size += lora_ranks[req.adapter_dir] * 4
                     self.adapters.add(req.adapter_dir)
-        else:
-            self.cache_len_list = []
-            self.adapters = set()
-            self.adapter_size = 0
     
     def intra_task_batching(self, lora_ranks):
         ## Preprocessing: gather the queries with the same adapter.
@@ -48,16 +44,12 @@ class PETSReqQueue(ReqQueue):
         ## DP
         mini_batches = []
         for adapter_dir, queries in clustered_queries_by_adapter.items():
-            state_1st_stage = []
-            split_idx_list = []
-
             ### Sort queries according to the sequence length in ascending order.
             queries = sorted(queries, key=lambda x: x.input_len)
             queries.insert(0, None)  # Sentinel.
 
-            ### Initialize.
-            state_1st_stage.append(0)
-            split_idx_list.append(0)
+            state_1st_stage = [0]
+            split_idx_list = [0]
             for j in range(1, len(queries)):
                 min_cost = np.Inf  # INF
                 split_idx = 0
@@ -69,20 +61,18 @@ class PETSReqQueue(ReqQueue):
                         split_idx = k-1
                 split_idx_list.append(split_idx)
                 state_1st_stage.append(min_cost)
-            
+
             ### Split queries into mini-batches according to split_idx_list.
-            
+
             end_idx = len(queries) - 1
 
-            while(end_idx > 0):
+            while (end_idx > 0):
                 start_idx = split_idx_list[end_idx] + 1
-                mini_batch = []
                 max_len = queries[end_idx].input_len
-                for j in range(start_idx, end_idx + 1):
-                    mini_batch.append(queries[j])               
+                mini_batch = [queries[j] for j in range(start_idx, end_idx + 1)]
                 mini_batches.append((mini_batch, max_len))
                 end_idx = split_idx_list[end_idx]        
-        
+
         return mini_batches
     
     # Inter-task batching.
@@ -97,12 +87,8 @@ class PETSReqQueue(ReqQueue):
             tmp += len(mini_batch[0])
             mini_batch_sum.append(tmp)
 
-        ## DP.
-        state_2nd_stage = []
-        split_idx_list = []
-        state_2nd_stage.append(0)
-        split_idx_list.append(0)
-
+        state_2nd_stage = [0]
+        split_idx_list = [0]
         for i in range(1, len(mini_batches)):
             min_cost = np.Inf  # INF
             split_idx = 0
@@ -120,12 +106,10 @@ class PETSReqQueue(ReqQueue):
 
         end_idx = len(mini_batches) - 1
         macro_batches = []
-        while(end_idx > 0):
+        while (end_idx > 0):
             start_idx = split_idx_list[end_idx] + 1
-            macro_batch = []
             max_len = mini_batches[end_idx][1]
-            for j in range(start_idx, end_idx + 1):
-                macro_batch.append(mini_batches[j])               
+            macro_batch = [mini_batches[j] for j in range(start_idx, end_idx + 1)]
             macro_batches.append((macro_batch, max_len))
             end_idx = split_idx_list[end_idx]        
 
@@ -144,34 +128,33 @@ class PETSReqQueue(ReqQueue):
         if req.adapter_dir not in self.adapters:
             self.adapter_size += lora_ranks[req.adapter_dir] * 4
             self.adapters.add(req.adapter_dir)
-        
+
         left_out_len_array = np.array([e[1] for e in self.cache_len_list])
         # assert left_out_len_array.min() >= 0
         has_run_len_array = np.array([e[0] for e in self.cache_len_list])
         cum_run_len_array = np.cumsum(has_run_len_array)
         size_array = np.arange(1, len(self.cache_len_list) + 1, 1)
-        
+
         need_max_token_num = (left_out_len_array * size_array + cum_run_len_array).max()
-        if (need_max_token_num < self.max_total_tokens - self.adapter_size and
-            len(self.cache_len_list) <= self.running_max_req_size):
-            return True
-        else:
-            return False
+        return (
+            need_max_token_num < self.max_total_tokens - self.adapter_size
+            and len(self.cache_len_list) <= self.running_max_req_size
+        )
 
     def generate_new_batch(self, current_batch:Batch, lora_ranks: dict[str, int]):
         if current_batch is not None and len(current_batch.reqs) >= self.running_max_req_size:
             return None
-        
+
         reqs = self.waiting_req_list
         # when waiting_reqs > 20
         if len(self.waiting_req_list) > 10:
             mini_batches = self.intra_task_batching(lora_ranks)
             macro_batches = self.inter_task_batching(mini_batches)
-            
+
             macro_batch = macro_batches[-1][0]
             reqs = [req for minibatch in macro_batch for req in minibatch[0]]
-            
-        
+
+
         self._init_cache_list(current_batch, lora_ranks)
         can_run_list = []
         abort_list = []
@@ -189,7 +172,7 @@ class PETSReqQueue(ReqQueue):
             else:
                 break
 
-        if len(can_run_list) != 0:
+        if can_run_list:
             new_batch = Batch(uuid.uuid4().hex, can_run_list)
             self.waiting_req_list = [req for req in self.waiting_req_list if req not in can_run_list and req not in abort_list]
             return new_batch
@@ -208,7 +191,7 @@ class PETSReqQueue(ReqQueue):
                 new_batch_total_tokens += req.input_len
             else:
                 break
-        if len(next_batch) > 0:
+        if next_batch:
             next_batch = Batch(uuid.uuid4().hex, next_batch)
             return next_batch
         else:
